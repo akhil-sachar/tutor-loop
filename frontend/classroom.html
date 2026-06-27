@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TutorLoop Classroom</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="classroom-page">
+    <main class="standalone-room">
+      <header class="room-header">
+        <div>
+          <span class="eyebrow">TutorLoop Live</span>
+          <h1 id="roomName">Mock classroom</h1>
+        </div>
+        <a href="/" class="link-button">Back to app</a>
+      </header>
+      <section class="room-stage large">
+        <div class="room-video">Tutor video</div>
+        <div class="room-video student">Student video</div>
+      </section>
+      <section class="panel">
+        <h2>Session transcript</h2>
+        <textarea rows="8">Tutor: Derivatives are instant slope.
+Student: The tangent line picture makes more sense than the formula alone.
+Tutor: Good. Let's use f(x)=x^2 at x=3 and connect the graph to the power rule.</textarea>
+      </section>
+    </main>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const roomId = params.get("room_id") || "mock-room";
+      document.getElementById("roomName").textContent = roomId;
+    </script>
+  </body>
+</html>

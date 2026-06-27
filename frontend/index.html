@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TutorLoop</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">TL</div>
+          <div>
+            <h1>TutorLoop</h1>
+            <p>Human tutoring that teaches the AI tutor to get better.</p>
+          </div>
+        </div>
+        <nav class="nav-tabs" aria-label="TutorLoop sections">
+          <button class="active" data-section="home">Home</button>
+          <button data-section="notes">Notes</button>
+          <button data-section="booking">Tutors</button>
+          <button data-section="classroom">Live Room</button>
+          <button data-section="ai">AI Tutor</button>
+          <button data-section="recommendations">Recommendations</button>
+        </nav>
+        <div class="demo-box">
+          <span class="label">Demo student</span>
+          <strong id="demoStudent">student-demo-maya</strong>
+          <button id="resetDemoBtn" class="secondary small">Reset seed</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">Continual Learning MVP</span>
+            <h2 id="sectionTitle">Learning Loop</h2>
+          </div>
+          <div class="status-strip">
+            <span id="mongoStatus">MongoDB: checking</span>
+            <span id="geminiStatus">Gemini: checking</span>
+            <span id="livekitStatus">LiveKit: checking</span>
+          </div>
+        </header>
+
+        <section id="home" class="section active">
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">Semantic search</span>
+                  <h3>Start with student confusion</h3>
+                </div>
+                <button id="runMainFlowBtn">Run flow</button>
+              </div>
+              <div class="search-row">
+                <input id="mainSearchInput" value="I'm confused about derivatives" />
+                <button id="semanticSearchBtn" class="secondary">Search</button>
+              </div>
+              <div id="semanticResults" class="result-list"></div>
+            </div>
+
+            <div class="visual-panel">
+              <img src="/assets/loop.svg" alt="TutorLoop continual learning loop" />
+              <div class="metric-grid">
+                <div>
+                  <span class="metric" id="notesCount">0</span>
+                  <span class="label">Notes matched</span>
+                </div>
+                <div>
+                  <span class="metric" id="tutorsCount">0</span>
+                  <span class="label">Tutors matched</span>
+                </div>
+                <div>
+                  <span class="metric" id="recsCount">0</span>
+                  <span class="label">Recommendations</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="notes" class="section">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Marketplace</span>
+                <h3>Tutor notes</h3>
+              </div>
+              <button id="noteSearchBtn">Search notes</button>
+            </div>
+            <div class="filter-grid">
+              <input id="noteQuery" value="derivatives slope tangent" />
+              <input id="noteSubject" value="Calculus" />
+              <input id="noteMaxPrice" type="number" value="12" min="0" step="1" />
+            </div>
+            <div id="notesResults" class="card-grid"></div>
+          </div>
+        </section>
+
+        <section id="booking" class="section">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Human tutor</span>
+                <h3>Book a live class</h3>
+              </div>
+              <button id="tutorSearchBtn">Find tutors</button>
+            </div>
+            <div class="filter-grid">
+              <input id="tutorQuery" value="derivatives visual calculus tutor" />
+              <input id="tutorSubject" value="Calculus" />
+              <input id="bookingTime" type="datetime-local" />
+            </div>
+            <div id="tutorResults" class="card-grid"></div>
+            <div id="bookingResult" class="output"></div>
+          </div>
+        </section>
+
+        <section id="classroom" class="section">
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">LiveKit</span>
+                  <h3>Live tutoring room</h3>
+                </div>
+                <button id="joinRoomBtn">Join room</button>
+              </div>
+              <div class="room-stage">
+                <div class="room-video">Tutor</div>
+                <div class="room-video student">Student</div>
+              </div>
+              <div id="roomTokenOutput" class="output"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">Reflection</span>
+                  <h3>Human session memory</h3>
+                </div>
+                <button id="reflectBtn">Reflect</button>
+              </div>
+              <select id="reflectionLanguage">
+                <option>Spanish</option>
+                <option>English</option>
+                <option>French</option>
+                <option>Hindi</option>
+              </select>
+              <textarea id="transcriptInput" rows="9">Tutor: Let's compare secant and tangent slopes for f(x)=x^2.
+Student: I am confused about how two points become one point.
+Tutor: We slide the second point closer and watch the slope approach a limit.
+Student: The graph helps. I still need practice connecting that to the power rule.</textarea>
+              <div id="reflectionOutput" class="output"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="ai" class="section">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">AI tutor</span>
+                <h3>Ask with retrieved memory</h3>
+              </div>
+              <button id="askAiBtn">Ask AI</button>
+            </div>
+            <textarea id="aiQuestion" rows="3">Can you explain derivatives using what my tutor just taught me?</textarea>
+            <div id="aiAnswer" class="answer-box"></div>
+            <div id="aiContext" class="result-list compact"></div>
+          </div>
+        </section>
+
+        <section id="recommendations" class="section">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Personalized</span>
+                <h3>Next best actions</h3>
+              </div>
+              <button id="refreshRecsBtn">Refresh</button>
+            </div>
+            <div id="recommendationsList" class="card-grid"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyTemplate">
+      <div class="empty-state">No results yet.</div>
+    </template>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

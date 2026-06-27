@@ -1,0 +1,35 @@
+name: tutorloop
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    github:
+      repo: your-org/tutor-loop
+      branch: main
+      deploy_on_push: true
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: APP_ENV
+        value: production
+      - key: DEMO_SEED_ON_STARTUP
+        value: "true"
+      - key: MONGODB_URI
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: LIVEKIT_URL
+        scope: RUN_TIME
+        value: ""
+      - key: LIVEKIT_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
+      - key: LIVEKIT_API_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
