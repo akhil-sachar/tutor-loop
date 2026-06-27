@@ -7,10 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.app.api.routes import ai, auth, bookings, demo, livekit, notes, recommendations, search, sessions, tutors
+from backend.app.api.routes import ai, auth, bookings, books, demo, livekit, notes, recommendations, search, sessions, tutors
 from backend.app.core.config import get_settings
 from backend.app.db.mongo import AppDatabase
 from backend.app.seed import seed_demo_data
+from backend.app.services.book_service import BookService
 from backend.app.services.gemini_service import GeminiService
 from backend.app.services.livekit_service import LiveKitService
 from backend.app.services.recommendation_service import RecommendationService
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     livekit = LiveKitService(settings)
     recommendations_service = RecommendationService(db, vector_search, gemini)
     reflections = ReflectionService(db, gemini, vector_search, recommendations_service)
+    books_service = BookService(db, vector_search)
 
     app.state.settings = settings
     app.state.db = db
@@ -37,9 +39,11 @@ async def lifespan(app: FastAPI):
     app.state.livekit = livekit
     app.state.recommendations = recommendations_service
     app.state.reflections = reflections
+    app.state.books = books_service
 
     if settings.demo_seed_on_startup:
         await seed_demo_data(db, gemini, vector_search, reset=False)
+        await books_service.ensure_books_ingested()
         await recommendations_service.refresh_for_student("student-demo-maya")
 
     yield
@@ -66,17 +70,22 @@ app.add_middleware(
 
 @app.get("/health", tags=["health"])
 async def health():
+    settings = get_settings()
+    agent_ready = settings.use_livekit and settings.use_gemini
     return {
         "status": "ok",
         "app": settings.app_name,
         "mongo": "atlas" if settings.use_mongo else "memory",
         "gemini": "configured" if settings.use_gemini else "mock",
         "livekit": "configured" if settings.use_livekit else "mock",
+        "ai_lecture_agent": "enabled" if agent_ready else "browser_fallback",
+        "run_command": "python run.py",
     }
 
 
 app.include_router(auth.router)
 app.include_router(notes.router)
+app.include_router(books.router)
 app.include_router(tutors.router)
 app.include_router(bookings.router)
 app.include_router(livekit.router)

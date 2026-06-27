@@ -5,3 +5,5 @@ pydantic-settings>=2.6,<3
 python-dotenv>=1.0,<2
 google-genai>=1.0,<2
 livekit-api>=0.8,<1
+livekit-agents[google]>=1.5,<2
+pypdf>=5.0,<6

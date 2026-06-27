@@ -1,0 +1,38 @@
+[
+  {
+    "_id": "student-demo-maya",
+    "name": "Maya Chen",
+    "email": "student@tutorloop.demo",
+    "password_hash": "67a4beda9b04054091bc2932a1660a2d$b85c1647698f7650f19e3aaa54295458f1a3fe2cfa516fa2369dd7361044e1c1",
+    "role": "student",
+    "subjects": [
+      "Calculus",
+      "Physics"
+    ],
+    "bio": "First-year college student building confidence in calculus.",
+    "created_at": {
+      "$date": "2026-06-27T22:19:20.907497Z"
+    },
+    "updated_at": {
+      "$date": "2026-06-27T22:19:20.907504Z"
+    }
+  },
+  {
+    "_id": "user-demo-elena",
+    "name": "Elena Rivera",
+    "email": "tutor@tutorloop.demo",
+    "password_hash": "45be8d92c2c6b2f41524374cb87a732b$9ac68fc9f58e5ffc51220667ab6454fa8731be93d6750ca16d2112e3f41c600f",
+    "role": "tutor",
+    "subjects": [
+      "Calculus",
+      "Algebra"
+    ],
+    "bio": "Math tutor who teaches with visual intuition first.",
+    "created_at": {
+      "$date": "2026-06-27T22:19:20.907522Z"
+    },
+    "updated_at": {
+      "$date": "2026-06-27T22:19:20.907522Z"
+    }
+  }
+]

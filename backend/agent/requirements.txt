@@ -1,0 +1,2 @@
+# Installed via backend/requirements.txt (livekit-agents[google])
+# Kept for reference — use: pip install -r backend/requirements.txt

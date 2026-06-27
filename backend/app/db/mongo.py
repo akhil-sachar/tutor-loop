@@ -121,7 +121,7 @@ class AppDatabase:
             self.client.close()
 
     def collection(self, name: str) -> Any:
-        if not self.db:
+        if not self.is_mongo:
             raise RuntimeError("MongoDB is not configured")
         return self.db[name]
 
@@ -131,7 +131,7 @@ class AppDatabase:
         payload.setdefault("created_at", utc_now())
         payload.setdefault("updated_at", utc_now())
 
-        if self.db:
+        if self.is_mongo:
             await self.db[collection].insert_one(payload)
         else:
             self.memory[collection].append(payload)
@@ -144,7 +144,7 @@ class AppDatabase:
         return ids
 
     async def find_one(self, collection: str, query: dict[str, Any] | None = None) -> dict[str, Any] | None:
-        if self.db:
+        if self.is_mongo:
             doc = await self.db[collection].find_one(query or {})
             return serialize_doc(doc) if doc else None
 
@@ -161,7 +161,7 @@ class AppDatabase:
         sort: list[tuple[str, int]] | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        if self.db:
+        if self.is_mongo:
             cursor = self.db[collection].find(query or {})
             if sort:
                 cursor = cursor.sort(sort)
@@ -182,7 +182,7 @@ class AppDatabase:
         *,
         upsert: bool = False,
     ) -> None:
-        if self.db:
+        if self.is_mongo:
             await self.db[collection].update_one(query, update, upsert=upsert)
             return
 
@@ -228,7 +228,7 @@ class AppDatabase:
         target["updated_at"] = utc_now()
 
     async def delete_many(self, collection: str, query: dict[str, Any] | None = None) -> int:
-        if self.db:
+        if self.is_mongo:
             result = await self.db[collection].delete_many(query or {})
             return result.deleted_count
 
@@ -237,6 +237,6 @@ class AppDatabase:
         return original_count - len(self.memory[collection])
 
     async def count_documents(self, collection: str, query: dict[str, Any] | None = None) -> int:
-        if self.db:
+        if self.is_mongo:
             return await self.db[collection].count_documents(query or {})
         return sum(1 for doc in self.memory[collection] if matches_filter(doc, query))

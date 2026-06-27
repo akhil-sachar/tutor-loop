@@ -22,7 +22,7 @@ const vectorIndex = {
   },
 };
 
-for (const collectionName of ["notes", "tutors", "transcripts", "ai_reflections"]) {
+for (const collectionName of ["notes", "tutors", "transcripts", "ai_reflections", "books", "book_chunks", "ai_conversations"]) {
   db.getCollection(collectionName).createSearchIndex(vectorIndex);
 }
 

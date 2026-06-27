@@ -1,0 +1,31 @@
+[
+  {
+    "_id": "review-elena-derivatives",
+    "tutor_id": "tutor-demo-elena",
+    "student_id": "student-demo-maya",
+    "subject": "Calculus",
+    "rating": 5,
+    "comment": "The graph-first derivative explanation finally clicked for me.",
+    "content_type": "review",
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.280342Z"
+    },
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.280344Z"
+    }
+  },
+  {
+    "_id": "review-note-visual",
+    "note_id": "note-derivatives-visual",
+    "student_id": "student-demo-maya",
+    "rating": 5,
+    "comment": "Short, visual, and exactly what I needed before my tutoring session.",
+    "content_type": "review",
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.280369Z"
+    },
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.280370Z"
+    }
+  }
+]

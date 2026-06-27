@@ -19,7 +19,7 @@ async def semantic_search(
 ):
     return await vector_search.search(
         query=q,
-        collections=["notes", "tutors", "ai_reflections", "transcripts"],
+        collections=["notes", "books", "book_chunks", "tutors", "ai_reflections", "transcripts", "ai_conversations"],
         filters={
             "subject": subject,
             "content_type": content_type,

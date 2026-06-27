@@ -2,7 +2,7 @@
 
 Human tutoring that teaches the AI tutor to get better.
 
-TutorLoop is a hackathon MVP for an education marketplace where students buy tutor notes, book live tutoring, join an AI tutor, and receive recommendations that improve after human tutoring sessions. The continual-learning loop uses memory, embeddings, retrieved context, reflections, and prompt instructions. It does not fine-tune model weights.
+TutorLoop is a hackathon MVP for an education marketplace where students buy tutor notes and platform books, book live tutoring, join an AI tutor grounded in textbook content, and receive recommendations that improve after human and AI tutoring sessions. The continual-learning loop uses memory, embeddings, retrieved context, reflections, and prompt instructions. It does not fine-tune model weights.
 
 ## Stack
 
@@ -21,10 +21,20 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r backend/requirements.txt
 copy .env.example .env
-uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+python run.py
 ```
 
-Open `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8080`.
+
+**One command** starts everything:
+- FastAPI web app + frontend
+- LiveKit AI lecture agent (voice + video tutoring)
+
+Set `GEMINI_API_KEY`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` in `.env` for full voice AI lectures. On first install, optionally run:
+
+```bash
+python -m livekit.agents download-files
+```
 
 The app runs without cloud credentials. Missing MongoDB, Gemini, and LiveKit keys automatically trigger mock fallbacks so the demo flow still works.
 
@@ -42,8 +52,9 @@ Demo login:
 4. Join the mock LiveKit classroom
 5. Reflect on the session transcript and choose a translation language
 6. The student learning profile updates with weak topics and teaching methods
-7. Ask the AI tutor about derivatives again
-8. Recommendations refresh from the updated profile and reflection vectors
+7. Ask the AI tutor about derivatives again (retrieval includes platform books and past reflections)
+8. Reflect on the AI tutor session to update the learning profile further
+9. Recommendations refresh from the updated profile and reflection vectors
 
 ## Main API Endpoints
 
@@ -53,10 +64,16 @@ Demo login:
 - `POST /notes`
 - `POST /notes/{note_id}/purchase`
 - `GET /tutors/search`
+- `GET /books`
+- `GET /books/search`
+- `POST /books/{book_id}/access`
 - `POST /bookings`
 - `GET /bookings/{booking_id}`
 - `POST /livekit/token`
+- `POST /ai/lecture/start`
+- `POST /ai/lecture/{lecture_id}/complete`
 - `POST /ai/chat`
+- `POST /ai/conversations/{conversation_id}/reflect`
 - `POST /sessions/{session_id}/reflect`
 - `GET /students/{student_id}/recommendations`
 - `GET /search`
@@ -65,14 +82,56 @@ Demo login:
 
 1. Create an Atlas cluster and database named `tutorloop`.
 2. Set `MONGODB_URI` in `.env`.
-3. Run `scripts/mongodb_atlas_indexes.js` in Atlas or `mongosh`.
-4. Keep `MONGODB_VECTOR_INDEX=tutorloop_vector_index`.
+3. Import the bundled demo dataset (recommended):
+
+```bash
+python scripts/generate_mongodb_data.py
+python scripts/generate_mongodb_data.py --upload --reset
+```
+
+Or use MongoDB tools:
+
+```powershell
+$env:MONGODB_URI = "mongodb+srv://..."
+.\scripts\import_mongodb_data.ps1
+```
+
+Or with `mongosh`:
+
+```bash
+python scripts/generate_mongodb_data.py
+mongosh "<your-uri>/tutorloop" scripts/import_mongodb_data.js
+```
+
+4. Run `scripts/mongodb_atlas_indexes.js` in Atlas or `mongosh` if indexes were not created by the import script.
+5. Keep `MONGODB_VECTOR_INDEX=tutorloop_vector_index`.
+
+### Generate upload data
+
+`scripts/generate_mongodb_data.py` builds a full TutorLoop dataset with:
+
+- demo users, tutors, notes, bookings, and sessions
+- platform books and searchable `book_chunks` from `backend/app/content/*.pdf`
+- human and AI session reflections, purchases, reviews, and recommendations
+- 768-dimension embeddings (mock vectors when `GEMINI_API_KEY` is missing)
+
+Options:
+
+```bash
+python scripts/generate_mongodb_data.py                  # export JSON to scripts/mongodb_data/
+python scripts/generate_mongodb_data.py --full-books     # export every PDF chunk
+python scripts/generate_mongodb_data.py --upload --reset # push JSON to Atlas
+```
+
+Exported files live in `scripts/mongodb_data/` (`manifest.json` lists collection counts).
 
 Collections used:
 
 - `users`
 - `tutors`
 - `notes`
+- `books`
+- `book_chunks`
 - `purchases`
 - `bookings`
 - `sessions`
@@ -98,6 +157,17 @@ LIVEKIT_API_SECRET=...
 ```
 
 If your Gemini account exposes a different model name, update `GEMINI_MODEL` without changing application code.
+
+## Run options
+
+```bash
+python run.py                  # dev: API reload + LiveKit agent
+python run.py --port 8000      # custom port
+python run.py --no-agent       # API only
+python run.py --production     # Docker / production (no reload)
+```
+
+Set `RUN_LIVEKIT_AGENT=false` in `.env` to skip the voice agent.
 
 ## Seed Data
 
@@ -137,14 +207,14 @@ docker run -p 8080:8080 --env-file .env tutorloop
 
 TutorLoop improves the AI tutor by storing and retrieving:
 
-- purchased notes
+- purchased notes and platform books
 - tutor profiles and teaching styles
-- AI conversations
+- AI conversations (embedded and reflectable)
 - human session transcripts
-- session summaries
+- AI and human session summaries
 - student weaknesses
 - successful teaching methods
 - future AI tutoring instructions
 - recommendation vectors
 
-The reflection endpoint writes an `ai_reflections` document and updates `student_learning_profiles`. Later AI chat calls retrieve those memories through vector search and include them in the Gemini prompt.
+The reflection endpoints write an `ai_reflections` document and update `student_learning_profiles` for both human tutoring sessions (`POST /sessions/{session_id}/reflect`) and AI tutor sessions (`POST /ai/conversations/{conversation_id}/reflect`). Platform PDFs under `backend/app/content/` are ingested at startup into `books` and `book_chunks` for retrieval during AI tutoring.

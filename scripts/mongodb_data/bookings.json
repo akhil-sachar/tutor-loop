@@ -1,0 +1,21 @@
+[
+  {
+    "_id": "booking-demo-derivatives",
+    "tutor_id": "tutor-demo-elena",
+    "student_id": "student-demo-maya",
+    "subject": "Calculus",
+    "starts_at": {
+      "$date": "2026-06-28T00:19:20.910178Z"
+    },
+    "duration_minutes": 45,
+    "status": "reflected",
+    "room_id": "tutorloop-booking-derivatives",
+    "session_id": "session-demo-derivatives",
+    "created_at": {
+      "$date": "2026-06-27T22:19:20.910290Z"
+    },
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.295083Z"
+    }
+  }
+]

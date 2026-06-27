@@ -86,7 +86,7 @@
             <div class="panel-head">
               <div>
                 <span class="label">Marketplace</span>
-                <h3>Tutor notes</h3>
+                <h3>Tutor notes &amp; books</h3>
               </div>
               <button id="noteSearchBtn">Search notes</button>
             </div>
@@ -96,6 +96,20 @@
               <input id="noteMaxPrice" type="number" value="12" min="0" step="1" />
             </div>
             <div id="notesResults" class="card-grid"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Platform library</span>
+                <h3>Textbooks for AI tutoring</h3>
+              </div>
+              <button id="bookSearchBtn">Search books</button>
+            </div>
+            <div class="filter-grid">
+              <input id="bookQuery" value="calculus derivatives limits" />
+              <input id="bookSubject" value="Calculus" />
+            </div>
+            <div id="booksResults" class="card-grid"></div>
           </div>
         </section>
 
@@ -159,17 +173,42 @@ Student: The graph helps. I still need practice connecting that to the power rul
         </section>
 
         <section id="ai" class="section">
-          <div class="panel">
-            <div class="panel-head">
-              <div>
-                <span class="label">AI tutor</span>
-                <h3>Ask with retrieved memory</h3>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">AI lecture</span>
+                  <h3>Live voice tutoring session</h3>
+                </div>
+                <button id="startLectureBtn">Start AI lecture</button>
               </div>
-              <button id="askAiBtn">Ask AI</button>
+              <p class="lecture-intro">
+                Join a full video lecture with a virtual AI tutor. Your notes and textbooks stay visible while you
+                speak to interject with questions anytime.
+              </p>
+              <div class="filter-grid">
+                <input id="lectureSubject" value="Calculus" />
+                <input id="lectureTopic" value="derivatives and tangent slope intuition" />
+              </div>
+              <div id="lectureLaunchStatus" class="output"></div>
             </div>
-            <textarea id="aiQuestion" rows="3">Can you explain derivatives using what my tutor just taught me?</textarea>
-            <div id="aiAnswer" class="answer-box"></div>
-            <div id="aiContext" class="result-list compact"></div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">Text fallback</span>
+                  <h3>Quick AI question</h3>
+                </div>
+                <div class="button-row">
+                  <button id="askAiBtn">Ask AI</button>
+                  <button id="reflectAiBtn" class="secondary">Reflect session</button>
+                </div>
+              </div>
+              <textarea id="aiQuestion" rows="3">Can you explain derivatives using what my tutor just taught me?</textarea>
+              <div id="aiAnswer" class="answer-box"></div>
+              <div id="aiReflectionOutput" class="output"></div>
+              <div id="aiContext" class="result-list compact"></div>
+            </div>
           </div>
         </section>
 

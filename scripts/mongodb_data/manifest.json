@@ -1,0 +1,62 @@
+{
+  "database": "tutorloop",
+  "generated_at": "2026-06-27T22:19:34.333520+00:00",
+  "collections": {
+    "users": {
+      "file": "users.json",
+      "count": 2
+    },
+    "tutors": {
+      "file": "tutors.json",
+      "count": 3
+    },
+    "notes": {
+      "file": "notes.json",
+      "count": 3
+    },
+    "books": {
+      "file": "books.json",
+      "count": 5
+    },
+    "book_chunks": {
+      "file": "book_chunks.json",
+      "count": 60
+    },
+    "purchases": {
+      "file": "purchases.json",
+      "count": 1
+    },
+    "bookings": {
+      "file": "bookings.json",
+      "count": 1
+    },
+    "sessions": {
+      "file": "sessions.json",
+      "count": 1
+    },
+    "transcripts": {
+      "file": "transcripts.json",
+      "count": 2
+    },
+    "ai_conversations": {
+      "file": "ai_conversations.json",
+      "count": 1
+    },
+    "ai_reflections": {
+      "file": "ai_reflections.json",
+      "count": 2
+    },
+    "student_learning_profiles": {
+      "file": "student_learning_profiles.json",
+      "count": 1
+    },
+    "recommendations": {
+      "file": "recommendations.json",
+      "count": 10
+    },
+    "reviews": {
+      "file": "reviews.json",
+      "count": 2
+    }
+  }
+}

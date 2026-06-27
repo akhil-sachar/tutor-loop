@@ -69,15 +69,18 @@ class GeminiService:
         transcript: str,
         subject: str,
         target_language: str,
+        session_type: str = "human",
     ) -> tuple[dict[str, Any], bool]:
+        session_label = "human tutoring" if session_type == "human" else "AI tutoring"
         prompt = f"""
 You are the continual-learning engine for TutorLoop.
-Analyze this human tutoring session transcript. Do not suggest fine-tuning model weights.
+Analyze this {session_label} session transcript. Do not suggest fine-tuning model weights.
 Return strict JSON with these keys:
 summary, translated_summary, weaknesses, successful_teaching_methods,
 future_ai_instructions, quiz_results, recommendation_text.
 
 Subject: {subject}
+Session type: {session_type}
 Translate the summary to: {target_language}
 
 Transcript:
@@ -108,7 +111,8 @@ Transcript:
         )
         return f"""
 You are TutorLoop's AI tutor. Teach in a warm, Socratic, tutoring style.
-Use retrieved notes, tutor session reflections, student weak topics, and profile memory.
+Use retrieved platform books, tutor notes, session reflections, student weak topics, and profile memory.
+When book chunks are retrieved, cite the book title and ground explanations in that material.
 Do not claim model weights were fine-tuned; explain that you improve through memory,
 retrieval, reflection, and prompt optimization.
 

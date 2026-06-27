@@ -3,7 +3,9 @@ const state = {
   tutorId: "tutor-demo-elena",
   bookingId: "booking-demo-derivatives",
   sessionId: "session-demo-derivatives",
+  conversationId: null,
   notes: [],
+  books: [],
   tutors: [],
 };
 
@@ -89,6 +91,25 @@ function renderNotes(notes) {
           ${pill(`${Number(note.rating || 0).toFixed(1)} rating`)}
         </div>
         <button data-buy-note="${escapeHtml(note.id || note._id)}">Buy note</button>
+      </article>
+    `,
+    )
+    .join("");
+}
+
+function renderBooks(books) {
+  $("booksResults").innerHTML = books
+    .map(
+      (book) => `
+      <article class="data-card">
+        <strong>${escapeHtml(book.title)}</strong>
+        <p>${escapeHtml(book.description)}</p>
+        <div class="meta-row">
+          ${pill(book.subject, "book")}
+          ${pill(book.author || "Platform", "tutor")}
+          ${pill(`${Number(book.rating || 0).toFixed(1)} rating`)}
+        </div>
+        <button data-add-book="${escapeHtml(book.id)}">Add to library</button>
       </article>
     `,
     )
@@ -186,6 +207,29 @@ async function searchTutors() {
   }
 }
 
+async function searchBooks() {
+  try {
+    const query = encodeURIComponent($("bookQuery").value);
+    const subject = encodeURIComponent($("bookSubject").value);
+    state.books = await api(`/books/search?q=${query}&subject=${subject}`);
+    if (!state.books.length) {
+      state.books = await api("/books");
+    }
+    renderBooks(state.books);
+  } catch (error) {
+    showError($("booksResults"), error);
+  }
+}
+
+async function addBook(bookId) {
+  const result = await api(`/books/${bookId}/access`, {
+    method: "POST",
+    body: JSON.stringify({ student_id: state.studentId }),
+  });
+  await loadRecommendations();
+  alert(result.message);
+}
+
 async function purchaseNote(noteId) {
   const result = await api(`/notes/${noteId}/purchase`, {
     method: "POST",
@@ -261,6 +305,39 @@ async function reflectSession() {
   }
 }
 
+async function startAiLecture() {
+  const target = $("lectureLaunchStatus");
+  try {
+    target.textContent = "Preparing lecture room and loading notes…";
+    const result = await api("/ai/lecture/start", {
+      method: "POST",
+      body: JSON.stringify({
+        student_id: state.studentId,
+        subject: $("lectureSubject").value || "Calculus",
+        topic: $("lectureTopic").value || "derivatives",
+        language: "English",
+      }),
+    });
+    sessionStorage.setItem(
+      "tutorloopLecture",
+      JSON.stringify({
+        lecture_id: result.lecture_id,
+        student_id: state.studentId,
+        subject: $("lectureSubject").value,
+        topic: $("lectureTopic").value,
+        room_url: result.room_url,
+        token: result.token,
+        is_mock: result.is_mock,
+        notes: result.notes,
+        lecture_outline: result.lecture_outline,
+      }),
+    );
+    window.location.href = "/ai-lecture.html";
+  } catch (error) {
+    showError(target, error);
+  }
+}
+
 async function askAi() {
   const answerTarget = $("aiAnswer");
   const contextTarget = $("aiContext");
@@ -274,10 +351,37 @@ async function askAi() {
         language: "English",
       }),
     });
+    state.conversationId = result.conversation_id;
     answerTarget.textContent = result.answer;
     renderResults(contextTarget, result.retrieved_context);
   } catch (error) {
     showError(answerTarget, error);
+  }
+}
+
+async function reflectAiSession() {
+  const target = $("aiReflectionOutput");
+  if (!state.conversationId) {
+    target.textContent = "Ask the AI tutor first, then reflect on that session.";
+    return;
+  }
+  try {
+    const result = await api(`/ai/conversations/${state.conversationId}/reflect`, {
+      method: "POST",
+      body: JSON.stringify({ target_language: $("reflectionLanguage").value }),
+    });
+    target.textContent = [
+      `AI reflection: ${result.reflection_id}`,
+      "",
+      result.translated_summary,
+      "",
+      `Weaknesses: ${result.weaknesses.join(", ")}`,
+      `AI instructions: ${result.future_ai_instructions.join(" ")}`,
+      `Mode: ${result.is_mock ? "mock Gemini reflection" : "Gemini reflection"}`,
+    ].join("\n");
+    await loadRecommendations();
+  } catch (error) {
+    showError(target, error);
   }
 }
 
@@ -293,12 +397,13 @@ async function loadRecommendations() {
 async function resetDemo() {
   await api("/demo/seed", { method: "POST", body: JSON.stringify({}) });
   await loadDemoIds();
-  await Promise.all([searchSemantic(), searchNotes(), searchTutors(), loadRecommendations()]);
+  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations()]);
 }
 
 async function runMainFlow() {
   await searchSemantic();
   await searchNotes();
+  await searchBooks();
   await searchTutors();
   await loadRecommendations();
   setSection("notes");
@@ -317,10 +422,13 @@ function bindEvents() {
   $("semanticSearchBtn").addEventListener("click", searchSemantic);
   $("runMainFlowBtn").addEventListener("click", runMainFlow);
   $("noteSearchBtn").addEventListener("click", searchNotes);
+  $("bookSearchBtn").addEventListener("click", searchBooks);
   $("tutorSearchBtn").addEventListener("click", searchTutors);
   $("joinRoomBtn").addEventListener("click", joinRoom);
   $("reflectBtn").addEventListener("click", reflectSession);
   $("askAiBtn").addEventListener("click", askAi);
+  $("reflectAiBtn").addEventListener("click", reflectAiSession);
+  $("startLectureBtn").addEventListener("click", startAiLecture);
   $("refreshRecsBtn").addEventListener("click", loadRecommendations);
   $("resetDemoBtn").addEventListener("click", resetDemo);
 
@@ -333,6 +441,10 @@ function bindEvents() {
     if (bookButton) {
       await bookTutor(bookButton.dataset.bookTutor);
     }
+    const addBookButton = event.target.closest("[data-add-book]");
+    if (addBookButton) {
+      await addBook(addBookButton.dataset.addBook);
+    }
   });
 }
 
@@ -341,7 +453,15 @@ async function init() {
   setDefaultBookingTime();
   await loadHealth();
   await loadDemoIds();
-  await Promise.all([searchSemantic(), searchNotes(), searchTutors(), loadRecommendations()]);
+  const completed = sessionStorage.getItem("tutorloopLectureComplete");
+  if (completed) {
+    const payload = JSON.parse(completed);
+    state.conversationId = payload.conversation_id;
+    $("aiReflectionOutput").textContent = `Lecture saved (${payload.lecture_id}). Click Reflect session to update AI memory.`;
+    sessionStorage.removeItem("tutorloopLectureComplete");
+    setSection("ai");
+  }
+  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations()]);
 }
 
 init().catch((error) => {

@@ -9,10 +9,13 @@ from backend.app.db.mongo import matches_filter
 
 COLLECTION_TITLES = {
     "notes": "title",
+    "books": "title",
+    "book_chunks": "title",
     "tutors": "display_name",
     "sessions": "subject",
     "transcripts": "subject",
     "ai_reflections": "subject",
+    "ai_conversations": "subject",
 }
 
 
@@ -134,7 +137,18 @@ class VectorSearchService:
         }
 
     def _text_for_doc(self, doc: dict[str, Any]) -> str:
-        keys = ["title", "subject", "description", "content", "bio", "teaching_style", "summary", "transcript"]
+        keys = [
+            "title",
+            "subject",
+            "description",
+            "content",
+            "bio",
+            "teaching_style",
+            "summary",
+            "transcript",
+            "question",
+            "answer",
+        ]
         return " ".join(str(doc.get(key, "")) for key in keys)
 
     def _snippet(self, doc: dict[str, Any]) -> str:

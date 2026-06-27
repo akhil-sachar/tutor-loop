@@ -21,6 +21,7 @@ class RecommendationService:
         purchased = set(profile.get("purchased_note_ids", []))
 
         note_matches = await self.vector_search.search(query=query, collections=["notes"], limit=8)
+        book_matches = await self.vector_search.search(query=query, collections=["books"], limit=4)
         tutor_matches = await self.vector_search.search(query=query, collections=["tutors"], limit=6)
 
         recommendations: list[dict[str, Any]] = []
@@ -37,6 +38,24 @@ class RecommendationService:
                     "reason": f"Matches weak topic memory: {', '.join(weak_topics[:3])}.",
                     "score": round(match["score"] + self._price_boost(match), 4),
                     "metadata": {"price": match.get("price"), "rating": match.get("rating")},
+                    "created_at": utc_now(),
+                }
+            )
+
+        purchased_books = set(profile.get("purchased_book_ids", []))
+        for match in book_matches:
+            if match.get("_id") in purchased_books:
+                continue
+            recommendations.append(
+                {
+                    "student_id": student_id,
+                    "type": "book",
+                    "target_id": match["_id"],
+                    "title": match["title"],
+                    "subject": match.get("subject"),
+                    "reason": f"Platform book aligned with weak topics: {', '.join(weak_topics[:3])}.",
+                    "score": round(match["score"] + 0.05, 4),
+                    "metadata": {"price": match.get("price", 0), "rating": match.get("rating")},
                     "created_at": utc_now(),
                 }
             )

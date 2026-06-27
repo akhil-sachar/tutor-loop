@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TutorLoop AI Lecture</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body class="lecture-page">
+    <div class="lecture-shell">
+      <header class="lecture-header">
+        <div>
+          <span class="eyebrow">AI Lecture Room</span>
+          <h1 id="lectureTitle">Live tutoring session</h1>
+          <p id="lectureSubtitle" class="lecture-subtitle"></p>
+        </div>
+        <div class="button-row">
+          <span id="connectionStatus" class="pill">Connecting</span>
+          <button id="endLectureBtn" class="secondary">End &amp; save</button>
+          <a href="/" class="link-button">Exit</a>
+        </div>
+      </header>
+
+      <div class="lecture-grid">
+        <section class="lecture-stage panel">
+          <div class="lecture-stage-inner">
+            <div id="tutorAvatar" class="tutor-avatar" aria-label="Virtual AI tutor">
+              <div class="avatar-face">AI</div>
+              <div id="tutorVisualizer" class="avatar-visualizer"></div>
+              <p id="tutorStatus" class="avatar-status">Virtual tutor</p>
+            </div>
+            <video id="studentVideo" class="student-pip" autoplay playsinline muted></video>
+            <div id="agentAudio" hidden></div>
+          </div>
+          <div class="lecture-controls">
+            <button id="toggleMicBtn">Mic on</button>
+            <button id="toggleCamBtn" class="secondary">Camera on</button>
+            <button id="raiseHandBtn" class="secondary">Interject</button>
+          </div>
+          <p id="lectureHint" class="lecture-hint">
+            Speak naturally to ask questions anytime. The AI tutor will pause and respond to your voice.
+          </p>
+        </section>
+
+        <aside class="lecture-sidebar">
+          <section class="panel notes-panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Lesson notes</span>
+                <h3>Visible during lecture</h3>
+              </div>
+            </div>
+            <ol id="lectureOutline" class="lecture-outline"></ol>
+            <div id="lectureNotes" class="notes-stack"></div>
+          </section>
+
+          <section class="panel transcript-panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Live transcript</span>
+                <h3>Session memory</h3>
+              </div>
+            </div>
+            <div id="liveTranscript" class="transcript-feed"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+    <script src="/assets/ai-lecture.js"></script>
+  </body>
+</html>

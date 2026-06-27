@@ -8,8 +8,10 @@ class ReflectRequest(BaseModel):
 
 class ReflectionOut(BaseModel):
     reflection_id: str
-    session_id: str
+    session_id: str | None = None
+    conversation_id: str | None = None
     student_id: str
+    source: str = "human"
     summary: str
     translated_summary: str
     weaknesses: list[str]

@@ -1,0 +1,199 @@
+[
+  {
+    "student_id": "student-demo-maya",
+    "type": "ai_lesson",
+    "target_id": "ai-lesson-derivatives-as-instant-rate-of-change",
+    "title": "AI lesson: derivatives as instant rate of change",
+    "subject": "Calculus",
+    "reason": "Generated from continual-learning reflections and quiz results.",
+    "score": 0.9,
+    "metadata": {
+      "source": "student_learning_profile"
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313348Z"
+    },
+    "_id": "20158612-6e62-4194-8ee1-6bd6c074e972",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313493Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "ai_lesson",
+    "target_id": "ai-lesson-secant-slope-to-tangent-slope",
+    "title": "AI lesson: secant slope to tangent slope",
+    "subject": "Calculus",
+    "reason": "Generated from continual-learning reflections and quiz results.",
+    "score": 0.9,
+    "metadata": {
+      "source": "student_learning_profile"
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313350Z"
+    },
+    "_id": "9d313116-2846-44a0-bc68-6318af69554b",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313515Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "ai_lesson",
+    "target_id": "ai-lesson-connecting-secant-slope-to-tangent-slope",
+    "title": "AI lesson: connecting secant slope to tangent slope",
+    "subject": "Calculus",
+    "reason": "Generated from continual-learning reflections and quiz results.",
+    "score": 0.9,
+    "metadata": {
+      "source": "student_learning_profile"
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313351Z"
+    },
+    "_id": "c886c522-bebd-4d0a-b671-58da3df7fd90",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313532Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "tutor",
+    "target_id": "tutor-demo-elena",
+    "title": "Elena Rivera",
+    "subject": "Calculus, Algebra, Precalculus",
+    "reason": "Teaching style aligns with profile: Graph-first, step-by-step explanations, frequent concept checks, and calm correction.",
+    "score": 0.6789,
+    "metadata": {
+      "hourly_rate": 42,
+      "rating": 4.9
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313338Z"
+    },
+    "_id": "3b105267-d307-4b32-9ba7-94aa5c8961fa",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313553Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "tutor",
+    "target_id": "tutor-demo-sam",
+    "title": "Sam Okafor",
+    "subject": "Physics, Calculus",
+    "reason": "Teaching style aligns with profile: Uses concrete physics scenarios and short quizzes to reveal misconceptions.",
+    "score": 0.5802,
+    "metadata": {
+      "hourly_rate": 38,
+      "rating": 4.7
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313341Z"
+    },
+    "_id": "11290f6b-54e4-4be2-9779-aaa72080d3ac",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313624Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "tutor",
+    "target_id": "tutor-demo-nina",
+    "title": "Nina Patel",
+    "subject": "Writing, Biology",
+    "reason": "Teaching style aligns with profile: Turns broad confusion into outlines, flashcards, and retrieval practice.",
+    "score": 0.5336,
+    "metadata": {
+      "hourly_rate": 34,
+      "rating": 4.6
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313343Z"
+    },
+    "_id": "98240927-116f-4e42-b7ff-1b1eeaeb9bf8",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313644Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "book",
+    "target_id": "book-linear-guest",
+    "title": "Linear Algebra Guest Lecture Notes",
+    "subject": "Linear Algebra",
+    "reason": "Platform book aligned with weak topics: derivatives as instant rate of change, secant slope to tangent slope, connecting secant slope to tangent slope.",
+    "score": 0.3382,
+    "metadata": {
+      "price": 0.0,
+      "rating": 4.6
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313328Z"
+    },
+    "_id": "577badad-e959-422b-825b-c7986339bdf2",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313658Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "note",
+    "target_id": "note-physics-motion",
+    "title": "Velocity and Acceleration From Graphs",
+    "subject": "Physics",
+    "reason": "Matches weak topic memory: derivatives as instant rate of change, secant slope to tangent slope, connecting secant slope to tangent slope.",
+    "score": 0.2991,
+    "metadata": {
+      "price": 8.0,
+      "rating": 4.7
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313315Z"
+    },
+    "_id": "0f47765a-6e25-4b5b-9a9b-8fd489c2b0da",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313673Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "note",
+    "target_id": "note-chain-rule",
+    "title": "Chain Rule Pattern Sheet",
+    "subject": "Calculus",
+    "reason": "Matches weak topic memory: derivatives as instant rate of change, secant slope to tangent slope, connecting secant slope to tangent slope.",
+    "score": 0.2829,
+    "metadata": {
+      "price": 7.5,
+      "rating": 4.6
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313323Z"
+    },
+    "_id": "bd52fe44-0d9f-44ef-a203-648d6d5eedf4",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313691Z"
+    }
+  },
+  {
+    "student_id": "student-demo-maya",
+    "type": "book",
+    "target_id": "book-transformer-survey",
+    "title": "Transformer Architecture Survey",
+    "subject": "Machine Learning",
+    "reason": "Platform book aligned with weak topics: derivatives as instant rate of change, secant slope to tangent slope, connecting secant slope to tangent slope.",
+    "score": 0.2424,
+    "metadata": {
+      "price": 0.0,
+      "rating": 4.7
+    },
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.313331Z"
+    },
+    "_id": "84aaccb7-db8b-4f46-9075-78b7481f779e",
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.313707Z"
+    }
+  }
+]

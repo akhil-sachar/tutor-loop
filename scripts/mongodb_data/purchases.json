@@ -1,0 +1,16 @@
+[
+  {
+    "_id": "purchase-demo-derivatives",
+    "note_id": "note-derivatives-visual",
+    "student_id": "student-demo-maya",
+    "amount": 9.0,
+    "status": "simulated_paid",
+    "content_type": "purchase",
+    "created_at": {
+      "$date": "2026-06-27T22:19:34.280051Z"
+    },
+    "updated_at": {
+      "$date": "2026-06-27T22:19:34.280057Z"
+    }
+  }
+]

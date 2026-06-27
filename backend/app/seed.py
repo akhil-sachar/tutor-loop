@@ -21,6 +21,8 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
         "users",
         "tutors",
         "notes",
+        "books",
+        "book_chunks",
         "purchases",
         "bookings",
         "sessions",
@@ -151,7 +153,9 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
         "mastered_topics": ["basic algebra"],
         "learning_style": "visual, step-by-step",
         "purchased_note_ids": [],
+        "purchased_book_ids": [],
         "session_ids": [],
+        "ai_conversation_ids": [],
         "reflection_ids": [],
         "future_ai_instructions": [
             "Use graph intuition before derivative rules.",
