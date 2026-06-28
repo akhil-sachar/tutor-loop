@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TutorLoop</title>
-    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260628a" />
   </head>
   <body>
     <div class="app-shell">
@@ -18,7 +18,8 @@
         </div>
         <nav class="nav-tabs" aria-label="TutorLoop sections">
           <button class="active" data-section="home">Home</button>
-          <button data-section="notes">Notes</button>
+          <button data-section="notes">Store</button>
+          <button data-section="library">Library</button>
           <button data-section="booking">Tutors</button>
           <button data-section="classroom">Live Room</button>
           <button data-section="ai">AI Tutor</button>
@@ -85,31 +86,53 @@
           <div class="panel">
             <div class="panel-head">
               <div>
-                <span class="label">Marketplace</span>
-                <h3>Tutor notes &amp; books</h3>
+                <span class="label">Store</span>
+                <h3>Notes &amp; books</h3>
               </div>
-              <button id="noteSearchBtn">Search notes</button>
+              <button id="storeSearchBtn">Search store</button>
             </div>
-            <div class="filter-grid">
-              <input id="noteQuery" value="derivatives slope tangent" />
-              <input id="noteSubject" value="Calculus" />
-              <input id="noteMaxPrice" type="number" value="12" min="0" step="1" />
+            <div class="search-row">
+              <input id="storeQuery" value="calculus derivatives limits" />
             </div>
-            <div id="notesResults" class="card-grid"></div>
-          </div>
-          <div class="panel">
             <div class="panel-head">
               <div>
-                <span class="label">Platform library</span>
-                <h3>Textbooks for AI tutoring</h3>
+                <span class="label">Notes</span>
+                <h3>Purchased and recommended notes</h3>
               </div>
-              <button id="bookSearchBtn">Search books</button>
             </div>
-            <div class="filter-grid">
-              <input id="bookQuery" value="calculus derivatives limits" />
-              <input id="bookSubject" value="Calculus" />
+            <div id="notesResults" class="card-grid"></div>
+            <div class="panel-head">
+              <div>
+                <span class="label">Books</span>
+                <h3>Textbooks for tutoring</h3>
+              </div>
             </div>
             <div id="booksResults" class="card-grid"></div>
+          </div>
+        </section>
+
+        <section id="library" class="section">
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">My purchases</span>
+                  <h3>Purchased notes</h3>
+                </div>
+                <button id="refreshLibraryBtn">Refresh library</button>
+              </div>
+              <div id="libraryNotes" class="card-grid"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="label">My textbooks</span>
+                  <h3>Purchased books</h3>
+                </div>
+              </div>
+              <div id="libraryBooks" class="card-grid"></div>
+            </div>
           </div>
         </section>
 
@@ -124,10 +147,17 @@
             </div>
             <div class="filter-grid">
               <input id="tutorQuery" value="derivatives visual calculus tutor" />
-              <input id="tutorSubject" value="Calculus" />
-              <input id="bookingTime" type="datetime-local" />
             </div>
             <div id="tutorResults" class="card-grid"></div>
+            <div class="panel-head">
+              <div>
+                <span class="label">Calendar</span>
+                <h3>Available and blocked slots</h3>
+              </div>
+              <button id="refreshAvailabilityBtn" class="secondary">Refresh slots</button>
+            </div>
+            <div id="availabilityCalendar" class="calendar-grid"></div>
+            <button id="confirmBookingBtn" disabled>Confirm selected slot</button>
             <div id="bookingResult" class="output"></div>
           </div>
         </section>
@@ -187,8 +217,7 @@ Student: The graph helps. I still need practice connecting that to the power rul
                 speak to interject with questions anytime.
               </p>
               <div class="filter-grid">
-                <input id="lectureSubject" value="Calculus" />
-                <input id="lectureTopic" value="derivatives and tangent slope intuition" />
+                <input id="lecturePrompt" value="Calculus: derivatives and tangent slope intuition" />
               </div>
               <div id="lectureLaunchStatus" class="output"></div>
             </div>
@@ -231,6 +260,6 @@ Student: The graph helps. I still need practice connecting that to the power rul
       <div class="empty-state">No results yet.</div>
     </template>
 
-    <script src="/assets/app.js"></script>
+    <script src="/assets/app.js?v=20260628a"></script>
   </body>
 </html>

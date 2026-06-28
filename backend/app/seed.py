@@ -25,6 +25,7 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
         "book_chunks",
         "purchases",
         "bookings",
+        "tutor_availability",
         "sessions",
         "transcripts",
         "ai_conversations",
@@ -171,7 +172,88 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
 
     booking_id = "booking-demo-derivatives"
     session_id = "session-demo-derivatives"
-    starts_at = datetime.now(timezone.utc) + timedelta(hours=2)
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    starts_at = now + timedelta(days=1, hours=14 - now.hour)
+    if starts_at <= now:
+        starts_at = now + timedelta(days=1, hours=2)
+
+    availability_id = "avail-demo-elena-booked"
+    await db.insert_many(
+        "tutor_availability",
+        [
+            {
+                "_id": availability_id,
+                "tutor_id": DEMO_TUTOR_ID,
+                "subject": "Calculus",
+                "topic": "Derivative intuition workshop",
+                "starts_at": starts_at,
+                "ends_at": starts_at + timedelta(minutes=30),
+                "duration_minutes": 30,
+                "status": "booked",
+                "student_id": DEMO_STUDENT_ID,
+            },
+            {
+                "_id": "avail-demo-elena-open-1",
+                "tutor_id": DEMO_TUTOR_ID,
+                "subject": "Calculus",
+                "topic": "Chain rule fundamentals",
+                "starts_at": starts_at + timedelta(hours=1),
+                "ends_at": starts_at + timedelta(hours=1, minutes=30),
+                "duration_minutes": 30,
+                "status": "available",
+            },
+            {
+                "_id": "avail-demo-elena-open-2",
+                "tutor_id": DEMO_TUTOR_ID,
+                "subject": "Calculus",
+                "topic": "Tangent slope from limits",
+                "starts_at": starts_at + timedelta(hours=2),
+                "ends_at": starts_at + timedelta(hours=2, minutes=30),
+                "duration_minutes": 30,
+                "status": "available",
+            },
+            {
+                "_id": "avail-demo-elena-blocked-1",
+                "tutor_id": DEMO_TUTOR_ID,
+                "subject": "Calculus",
+                "topic": "Internal break",
+                "starts_at": starts_at + timedelta(hours=3),
+                "ends_at": starts_at + timedelta(hours=3, minutes=30),
+                "duration_minutes": 30,
+                "status": "blocked",
+            },
+            {
+                "_id": "avail-demo-sam-open-1",
+                "tutor_id": "tutor-demo-sam",
+                "subject": "Physics",
+                "topic": "Velocity from position graphs",
+                "starts_at": starts_at + timedelta(hours=1),
+                "ends_at": starts_at + timedelta(hours=1, minutes=30),
+                "duration_minutes": 30,
+                "status": "available",
+            },
+            {
+                "_id": "avail-demo-sam-blocked-1",
+                "tutor_id": "tutor-demo-sam",
+                "subject": "Physics",
+                "topic": "Unavailable",
+                "starts_at": starts_at + timedelta(hours=2),
+                "ends_at": starts_at + timedelta(hours=2, minutes=30),
+                "duration_minutes": 30,
+                "status": "blocked",
+            },
+            {
+                "_id": "avail-demo-nina-open-1",
+                "tutor_id": "tutor-demo-nina",
+                "subject": "Biology",
+                "topic": "Cell biology concept map",
+                "starts_at": starts_at + timedelta(hours=1),
+                "ends_at": starts_at + timedelta(hours=1, minutes=30),
+                "duration_minutes": 30,
+                "status": "available",
+            },
+        ],
+    )
     await db.insert_one(
         "bookings",
         {
@@ -184,6 +266,7 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "status": "booked",
             "room_id": "tutorloop-booking-derivatives",
             "session_id": session_id,
+            "availability_slot_id": availability_id,
         },
     )
     await db.insert_one(

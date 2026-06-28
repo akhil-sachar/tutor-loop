@@ -602,6 +602,46 @@ p {
   margin-top: 10px;
 }
 
+.calendar-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.calendar-day {
+  border: 2px dashed rgba(251, 246, 223, 0.28);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.slot-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slot-btn {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.slot-btn.available {
+  background: linear-gradient(180deg, #b7ec96, #8ccf63);
+}
+
+.slot-btn.booked,
+.slot-btn.blocked {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  color: var(--chalk-dim);
+  border-color: rgba(251, 246, 223, 0.24);
+}
+
+.slot-btn.selected {
+  box-shadow: 0 0 0 3px rgba(242, 216, 117, 0.25), 0 4px 0 rgba(26, 13, 6, 0.62);
+}
+
 .classroom-page,
 .lecture-page {
   background:

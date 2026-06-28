@@ -22,7 +22,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, room_io
 from livekit.plugins import google
 
 AGENT_NAME = "tutorloop-ai-tutor"
-DEFAULT_GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
+DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
 
 
 def _build_instructions(metadata: dict) -> str:
@@ -48,7 +48,8 @@ Student weak topics: {", ".join(weak) or "not recorded yet"}
 Prior tutoring guidance: {" ".join(guidance[:5])}
 
 Behavior:
-- Deliver a full lecture in clear spoken segments.
+- Begin immediately by greeting the student and telling them they can speak anytime to ask questions.
+- Deliver the full lecture following the outline above in clear spoken segments.
 - The student can interrupt with voice questions at any time — pause, answer, then continue.
 - Ground explanations in the notes above when relevant.
 - Use a warm, Socratic tutoring tone.
@@ -86,12 +87,16 @@ async def tutorloop_ai_tutor(ctx: JobContext) -> None:
     )
 
     topic = metadata.get("topic", "today's topic")
-    await session.generate_reply(
-        instructions=(
-            f"Begin the live lecture on {topic}. Greet the student, tell them they can "
-            "speak anytime to interject with questions, then start step 1 of the outline."
+
+    # generate_reply is not supported on gemini-3.1 live models — the greeting
+    # is baked into the system instructions above instead.
+    if "3.1" not in live_model:
+        await session.generate_reply(
+            instructions=(
+                f"Begin the live lecture on {topic}. Greet the student, tell them they can "
+                "speak anytime to interject with questions, then start step 1 of the outline."
+            )
         )
-    )
 
 
 if __name__ == "__main__":

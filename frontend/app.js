@@ -3,6 +3,7 @@ const state = {
   tutorId: "tutor-demo-elena",
   bookingId: "booking-demo-derivatives",
   sessionId: "session-demo-derivatives",
+  selectedSlot: null,
   conversationId: null,
   isAskingAi: false,
   notes: [],
@@ -12,7 +13,8 @@ const state = {
 
 const sectionTitles = {
   home: "Learning Loop",
-  notes: "Notes Marketplace",
+  notes: "Store",
+  library: "My Library",
   booking: "Tutor Booking",
   classroom: "Live Classroom",
   ai: "AI Tutor",
@@ -54,6 +56,12 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatTimeRange(startsAt, endsAt) {
+  const start = new Date(startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const end = new Date(endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `${start}-${end}`;
 }
 
 function renderResults(target, results) {
@@ -157,6 +165,47 @@ function renderRecommendations(recs) {
     .join("");
 }
 
+function renderLibrary(library) {
+  const notes = library.notes || [];
+  const books = library.books || [];
+
+  $("libraryNotes").innerHTML = notes.length
+    ? notes
+        .map(
+          (note) => `
+      <article class="data-card">
+        <strong>${escapeHtml(note.title)}</strong>
+        <p>${escapeHtml(note.description)}</p>
+        <div class="meta-row">
+          ${note.subject ? pill(note.subject, "note") : ""}
+          ${pill(`$${Number(note.price || 0).toFixed(2)}`, "note")}
+        </div>
+        <p>${escapeHtml((note.content || "").slice(0, 260))}${(note.content || "").length > 260 ? "..." : ""}</p>
+      </article>
+    `,
+        )
+        .join("")
+    : $("emptyTemplate").innerHTML;
+
+  $("libraryBooks").innerHTML = books.length
+    ? books
+        .map(
+          (book) => `
+      <article class="data-card">
+        <strong>${escapeHtml(book.title)}</strong>
+        <p>${escapeHtml(book.description)}</p>
+        <div class="meta-row">
+          ${book.subject ? pill(book.subject, "book") : ""}
+          ${book.author ? pill(book.author, "tutor") : ""}
+        </div>
+        <p>${escapeHtml(book.preview || "No preview available yet.")}</p>
+      </article>
+    `,
+        )
+        .join("")
+    : $("emptyTemplate").innerHTML;
+}
+
 async function loadHealth() {
   const health = await api("/health");
   $("mongoStatus").textContent = `MongoDB: ${health.mongo}`;
@@ -187,10 +236,8 @@ async function searchSemantic() {
 
 async function searchNotes() {
   try {
-    const query = encodeURIComponent($("noteQuery").value);
-    const subject = encodeURIComponent($("noteSubject").value);
-    const maxPrice = encodeURIComponent($("noteMaxPrice").value);
-    state.notes = await api(`/notes/search?q=${query}&subject=${subject}&max_price=${maxPrice}`);
+    const query = encodeURIComponent($("storeQuery").value);
+    state.notes = await api(`/notes/search?q=${query}`);
     renderNotes(state.notes);
   } catch (error) {
     showError($("notesResults"), error);
@@ -200,8 +247,7 @@ async function searchNotes() {
 async function searchTutors() {
   try {
     const query = encodeURIComponent($("tutorQuery").value);
-    const subject = encodeURIComponent($("tutorSubject").value);
-    state.tutors = await api(`/tutors/search?q=${query}&subject=${subject}`);
+    state.tutors = await api(`/tutors/search?q=${query}`);
     renderTutors(state.tutors);
   } catch (error) {
     showError($("tutorResults"), error);
@@ -210,9 +256,8 @@ async function searchTutors() {
 
 async function searchBooks() {
   try {
-    const query = encodeURIComponent($("bookQuery").value);
-    const subject = encodeURIComponent($("bookSubject").value);
-    state.books = await api(`/books/search?q=${query}&subject=${subject}`);
+    const query = encodeURIComponent($("storeQuery").value);
+    state.books = await api(`/books/search?q=${query}`);
     if (!state.books.length) {
       state.books = await api("/books");
     }
@@ -227,6 +272,7 @@ async function addBook(bookId) {
     method: "POST",
     body: JSON.stringify({ student_id: state.studentId }),
   });
+  await loadLibrary();
   await loadRecommendations();
   alert(result.message);
 }
@@ -236,34 +282,89 @@ async function purchaseNote(noteId) {
     method: "POST",
     body: JSON.stringify({ student_id: state.studentId }),
   });
+  await loadLibrary();
   await loadRecommendations();
   alert(result.message);
 }
 
-async function bookTutor(tutorId) {
-  const requestedStart = new Date($("bookingTime").value || Date.now() + 60 * 60 * 1000);
-  const availableSlots = await api(`/tutors/${tutorId}/availability?limit=10`);
-  if (!availableSlots.length) {
-    throw new Error("This tutor has no open 30-minute slots.");
+function renderAvailabilityCalendar(slots) {
+  const target = $("availabilityCalendar");
+  if (!state.tutorId) {
+    target.innerHTML = `<div class="empty-state">Choose a tutor first to view their calendar.</div>`;
+    return;
   }
-  const exactSlot = availableSlots.find((slot) => new Date(slot.starts_at).getTime() === requestedStart.getTime());
-  const slot = exactSlot || availableSlots[0];
+  if (!slots.length) {
+    target.innerHTML = `<div class="empty-state">No upcoming slots found for this tutor.</div>`;
+    return;
+  }
+  const grouped = slots.reduce((acc, slot) => {
+    const dateKey = new Date(slot.starts_at).toLocaleDateString();
+    acc[dateKey] = acc[dateKey] || [];
+    acc[dateKey].push(slot);
+    return acc;
+  }, {});
+  target.innerHTML = Object.entries(grouped)
+    .map(
+      ([dateKey, daySlots]) => `
+      <article class="calendar-day">
+        <strong>${escapeHtml(dateKey)}</strong>
+        <p>${daySlots.filter((slot) => slot.status === "available").length} available slots</p>
+        <div class="slot-row">
+          ${
+            daySlots.filter((slot) => slot.status === "available").length
+              ? daySlots
+                  .filter((slot) => slot.status === "available")
+                  .map((slot) => {
+                    const timeRange = formatTimeRange(slot.starts_at, slot.ends_at);
+                    const isSelected = state.selectedSlot && state.selectedSlot._id === slot._id;
+                    return `<button class="slot-btn available ${isSelected ? "selected" : ""}" data-slot-id="${escapeHtml(slot._id)}">${escapeHtml(timeRange)}</button>`;
+                  })
+                  .join("")
+              : `<span class="pill blocked">No available slots this day</span>`
+          }
+        </div>
+      </article>
+    `,
+    )
+    .join("");
+}
+
+async function loadTutorAvailability() {
+  const target = $("bookingResult");
+  if (!state.tutorId) {
+    target.textContent = "Pick a tutor card first.";
+    return;
+  }
+  try {
+    const slots = await api(`/tutors/${state.tutorId}/availability/calendar?days=14`);
+    state.currentSlots = slots;
+    renderAvailabilityCalendar(slots);
+  } catch (error) {
+    showError(target, error);
+  }
+}
+
+async function confirmBooking() {
+  if (!state.tutorId || !state.selectedSlot) {
+    $("bookingResult").textContent = "Select an available slot in the calendar.";
+    return;
+  }
+  const slot = state.selectedSlot;
   const startsAt = new Date(slot.starts_at).toISOString();
-  $("bookingTime").value = startsAt.slice(0, 16);
   const booking = await api("/bookings", {
     method: "POST",
     body: JSON.stringify({
-      tutor_id: tutorId,
+      tutor_id: state.tutorId,
       student_id: state.studentId,
-      subject: slot.subject || $("tutorSubject").value || "Calculus",
+      subject: slot.subject || "General",
       starts_at: startsAt,
       duration_minutes: 30,
     }),
   });
-  state.tutorId = tutorId;
   state.bookingId = booking.id || booking._id;
   state.sessionId = booking.session_id;
   $("bookingResult").textContent = `Booked 30 minutes of ${booking.subject} at ${new Date(booking.starts_at).toLocaleString()} with room ${booking.room_id}. Session ${booking.session_id}.`;
+  await loadTutorAvailability();
   setSection("classroom");
 }
 
@@ -318,12 +419,20 @@ async function startAiLecture() {
   const target = $("lectureLaunchStatus");
   try {
     target.textContent = "Preparing lecture room and loading notes…";
+    const lecturePrompt = $("lecturePrompt").value.trim() || "Calculus: derivatives and tangent slope intuition";
+    let subject = "Calculus";
+    let topic = lecturePrompt;
+    if (lecturePrompt.includes(":")) {
+      const [left, ...rest] = lecturePrompt.split(":");
+      if (left.trim()) subject = left.trim();
+      if (rest.join(":").trim()) topic = rest.join(":").trim();
+    }
     const result = await api("/ai/lecture/start", {
       method: "POST",
       body: JSON.stringify({
         student_id: state.studentId,
-        subject: $("lectureSubject").value || "Calculus",
-        topic: $("lectureTopic").value || "derivatives",
+        subject,
+        topic,
         language: "English",
       }),
     });
@@ -332,8 +441,8 @@ async function startAiLecture() {
       JSON.stringify({
         lecture_id: result.lecture_id,
         student_id: state.studentId,
-        subject: $("lectureSubject").value,
-        topic: $("lectureTopic").value,
+        subject,
+        topic,
         room_url: result.room_url,
         token: result.token,
         is_mock: result.is_mock,
@@ -411,10 +520,22 @@ async function loadRecommendations() {
   }
 }
 
+async function loadLibrary() {
+  try {
+    const library = await api(`/students/${state.studentId}/library`);
+    renderLibrary(library);
+  } catch (error) {
+    showError($("libraryNotes"), error);
+    showError($("libraryBooks"), error);
+  }
+}
+
 async function resetDemo() {
   await api("/demo/seed", { method: "POST", body: JSON.stringify({}) });
   await loadDemoIds();
-  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations()]);
+  state.selectedSlot = null;
+  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations(), loadLibrary()]);
+  renderAvailabilityCalendar([]);
 }
 
 async function runMainFlow() {
@@ -427,9 +548,7 @@ async function runMainFlow() {
 }
 
 function setDefaultBookingTime() {
-  const date = new Date(Date.now() + 60 * 60 * 1000);
-  date.setMinutes(0, 0, 0);
-  $("bookingTime").value = date.toISOString().slice(0, 16);
+  return;
 }
 
 function bindEvents() {
@@ -438,15 +557,19 @@ function bindEvents() {
   });
   $("semanticSearchBtn").addEventListener("click", searchSemantic);
   $("runMainFlowBtn").addEventListener("click", runMainFlow);
-  $("noteSearchBtn").addEventListener("click", searchNotes);
-  $("bookSearchBtn").addEventListener("click", searchBooks);
+  $("storeSearchBtn").addEventListener("click", async () => {
+    await Promise.all([searchNotes(), searchBooks()]);
+  });
   $("tutorSearchBtn").addEventListener("click", searchTutors);
+  $("refreshAvailabilityBtn").addEventListener("click", loadTutorAvailability);
+  $("confirmBookingBtn").addEventListener("click", confirmBooking);
   $("joinRoomBtn").addEventListener("click", joinRoom);
   $("reflectBtn").addEventListener("click", reflectSession);
   $("askAiBtn").addEventListener("click", askAi);
   $("reflectAiBtn").addEventListener("click", reflectAiSession);
   $("startLectureBtn").addEventListener("click", startAiLecture);
   $("refreshRecsBtn").addEventListener("click", loadRecommendations);
+  $("refreshLibraryBtn").addEventListener("click", loadLibrary);
   $("resetDemoBtn").addEventListener("click", resetDemo);
 
   document.addEventListener("click", async (event) => {
@@ -456,7 +579,23 @@ function bindEvents() {
     }
     const bookButton = event.target.closest("[data-book-tutor]");
     if (bookButton) {
-      await bookTutor(bookButton.dataset.bookTutor);
+      const tutorId = bookButton.dataset.bookTutor;
+      state.tutorId = tutorId;
+      state.selectedSlot = null;
+      setSection("booking");
+      $("confirmBookingBtn").disabled = true;
+      $("bookingResult").textContent = "Tutor selected. Pick an available slot from the calendar.";
+      await loadTutorAvailability();
+      $("availabilityCalendar").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    const slotButton = event.target.closest("[data-slot-id]");
+    if (slotButton) {
+      const slot = (state.currentSlots || []).find((item) => item._id === slotButton.dataset.slotId);
+      if (!slot || slot.status !== "available") return;
+      state.selectedSlot = slot;
+      $("confirmBookingBtn").disabled = false;
+      $("bookingResult").textContent = `Selected ${new Date(slot.starts_at).toLocaleString()} (${slot.subject || "General"}). Click Confirm selected slot.`;
+      renderAvailabilityCalendar(state.currentSlots || []);
     }
     const addBookButton = event.target.closest("[data-add-book]");
     if (addBookButton) {
@@ -470,6 +609,12 @@ async function init() {
   setDefaultBookingTime();
   await loadHealth();
   await loadDemoIds();
+  const params = new URLSearchParams(window.location.search);
+  const initialSection = params.get("section");
+  const initialTutorId = params.get("tutor_id");
+  if (initialSection) {
+    setSection(initialSection);
+  }
   const completed = sessionStorage.getItem("tutorloopLectureComplete");
   if (completed) {
     const payload = JSON.parse(completed);
@@ -478,7 +623,16 @@ async function init() {
     sessionStorage.removeItem("tutorloopLectureComplete");
     setSection("ai");
   }
-  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations()]);
+  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations(), loadLibrary()]);
+  if (initialTutorId) {
+    state.tutorId = initialTutorId;
+    state.selectedSlot = null;
+    $("confirmBookingBtn").disabled = true;
+    $("bookingResult").textContent = "Tutor selected from link. Choose an available slot below.";
+    await loadTutorAvailability();
+  } else {
+    renderAvailabilityCalendar([]);
+  }
 }
 
 init().catch((error) => {
