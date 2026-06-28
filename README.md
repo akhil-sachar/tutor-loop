@@ -103,8 +103,8 @@ python scripts/generate_mongodb_data.py
 mongosh "<your-uri>/tutorloop" scripts/import_mongodb_data.js
 ```
 
-4. Run `scripts/mongodb_atlas_indexes.js` in Atlas or `mongosh` if indexes were not created by the import script.
-5. Keep `MONGODB_VECTOR_INDEX=tutorloop_vector_index`.
+4. Run `scripts/mongodb_atlas_indexes.js` in Atlas/`mongosh`, or `python scripts/create_vector_indexes.py`, to create the vector indexes if they were not created by the import script.
+5. Each collection has its own distinct vector index (`notes_vector_index`, `books_vector_index`, `book_chunks_vector_index`, `tutors_vector_index`, etc.), each declaring only the filter fields that collection uses. `MONGODB_VECTOR_INDEX` is only a fallback name for any collection not in that map.
 
 ### Generate upload data
 

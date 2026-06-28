@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from backend.app.api.deps import get_db, get_gemini, get_livekit, get_reflections, get_vector_search
+from backend.app.api.deps import get_db, get_gemini, get_learning, get_livekit, get_reflections, get_vector_search
 from backend.app.db.mongo import utc_now
 from backend.app.schemas.ai import (
     AIChatRequest,
@@ -14,6 +14,14 @@ from backend.app.schemas.ai import (
     AIReflectRequest,
     AIReflectResponse,
     LectureNote,
+)
+from backend.app.schemas.learning import (
+    ConversationFeedbackRequest,
+    ConversationFeedbackResponse,
+    QuizGradeRequest,
+    QuizGradeResponse,
+    QuizStartRequest,
+    QuizStartResponse,
 )
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -66,12 +74,27 @@ async def start_ai_lecture(
 ):
     profile = await db.find_one("student_learning_profiles", {"student_id": payload.student_id}) or {}
     query = f"{payload.subject} {payload.topic} {' '.join(profile.get('weak_topics', [])[:4])}"
-    retrieved = await vector_search.search(
-        query=query,
-        collections=["notes", "books", "book_chunks", "ai_reflections"],
-        filters={"subject": payload.subject},
-        limit=8,
-    )
+
+    grounded_sources = bool(payload.note_ids or payload.book_ids)
+    if grounded_sources:
+        # RAG narrowing: ground the lecture only on the selected notes/books.
+        retrieved = await vector_search.search_sources(
+            query=query,
+            note_ids=payload.note_ids,
+            book_ids=payload.book_ids,
+            limit=10,
+        )
+    else:
+        # Book CONTENT comes only from the content/ folder (books + book_chunks),
+        # but the tutor still learns from its own memory: prior session reflections
+        # and transcripts. Marketplace notes are intentionally excluded. Rank purely
+        # by semantic similarity (no exact-subject filter) so any topic works.
+        retrieved = await vector_search.search(
+            query=query,
+            collections=["books", "book_chunks", "ai_reflections", "transcripts"],
+            filters={},
+            limit=8,
+        )
     lecture_notes = _lecture_notes_from_results(retrieved)
 
     lecture_id = f"lecture-{payload.student_id[:8]}-{uuid.uuid4().hex[:10]}"
@@ -86,6 +109,7 @@ async def start_ai_lecture(
         "future_ai_instructions": profile.get("future_ai_instructions", [])[:6],
         "lecture_notes": [note.model_dump() for note in lecture_notes],
         "lecture_outline": LECTURE_OUTLINE,
+        "grounded_sources": grounded_sources,
     }
     token_payload = livekit.create_ai_lecture_token(
         room_id=room_id,
@@ -119,6 +143,7 @@ async def start_ai_lecture(
         "agent_name": token_payload.get("agent_name"),
         "notes": lecture_notes,
         "lecture_outline": LECTURE_OUTLINE,
+        "grounded_sources": grounded_sources,
     }
 
 
@@ -179,13 +204,22 @@ async def ai_chat(
     vector_search=Depends(get_vector_search),
 ):
     profile = await db.find_one("student_learning_profiles", {"student_id": payload.student_id}) or {}
-    filters = {"subject": payload.subject} if payload.subject else {}
-    retrieved = await vector_search.search(
-        query=payload.question,
-        collections=AI_RETRIEVAL_COLLECTIONS,
-        filters=filters,
-        limit=8,
-    )
+    if payload.note_ids or payload.book_ids:
+        # RAG narrowing: answer using only the student's selected sources.
+        retrieved = await vector_search.search_sources(
+            query=payload.question,
+            note_ids=payload.note_ids,
+            book_ids=payload.book_ids,
+            limit=8,
+        )
+    else:
+        filters = {"subject": payload.subject} if payload.subject else {}
+        retrieved = await vector_search.search(
+            query=payload.question,
+            collections=AI_RETRIEVAL_COLLECTIONS,
+            filters=filters,
+            limit=8,
+        )
     answer, is_mock = await gemini.generate_tutor_response(
         question=payload.question,
         student_profile=profile,
@@ -241,6 +275,44 @@ async def reflect_ai_conversation(
         return await reflections.reflect_ai_conversation(
             conversation_id=conversation_id,
             target_language=payload.target_language,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/quiz/start", response_model=QuizStartResponse)
+async def start_quiz(payload: QuizStartRequest, learning=Depends(get_learning)):
+    return await learning.start_quiz(
+        student_id=payload.student_id,
+        subject=payload.subject,
+        topic=payload.topic,
+        num_questions=payload.num_questions,
+    )
+
+
+@router.post("/quiz/grade", response_model=QuizGradeResponse)
+async def grade_quiz(payload: QuizGradeRequest, learning=Depends(get_learning)):
+    try:
+        return await learning.grade_quiz(
+            quiz_id=payload.quiz_id,
+            answers=[answer.model_dump() for answer in payload.answers],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/conversations/{conversation_id}/feedback", response_model=ConversationFeedbackResponse)
+async def conversation_feedback(
+    conversation_id: str,
+    payload: ConversationFeedbackRequest,
+    learning=Depends(get_learning),
+):
+    try:
+        return await learning.record_feedback(
+            conversation_id=conversation_id,
+            student_id=payload.student_id,
+            helpful=payload.helpful,
+            note=payload.note,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

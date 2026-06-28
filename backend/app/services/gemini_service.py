@@ -98,6 +98,139 @@ Transcript:
                 pass
         return self._mock_reflection(transcript, subject, target_language), True
 
+    async def generate_quiz(
+        self,
+        *,
+        subject: str,
+        topic: str,
+        num_questions: int = 3,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """Generate a short diagnostic quiz for a topic. Returns (questions, is_mock)."""
+        prompt = f"""
+You are TutorLoop's diagnostic quiz writer.
+Write {num_questions} short open-ended questions that measure a student's understanding
+of the topic below. Questions should be answerable in 1-2 sentences and progress from
+basic recall to applied reasoning.
+
+Subject: {subject}
+Topic: {topic}
+
+Return strict JSON: {{"questions": [{{"question": "...", "ideal_answer": "..."}}]}}
+"""
+        if self.client:
+            try:
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.settings.gemini_model,
+                    contents=prompt,
+                )
+                parsed = self._extract_json(response.text)
+                questions = [
+                    {"question": str(q.get("question", "")).strip(), "ideal_answer": str(q.get("ideal_answer", "")).strip()}
+                    for q in parsed.get("questions", [])
+                    if str(q.get("question", "")).strip()
+                ]
+                if questions:
+                    return questions[:num_questions], False
+            except Exception:
+                pass
+        return self._mock_quiz(subject, topic, num_questions), True
+
+    async def grade_quiz(
+        self,
+        *,
+        subject: str,
+        topic: str,
+        items: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any], bool]:
+        """Grade quiz answers. items: [{question, ideal_answer, answer}].
+
+        Returns ({score: 0..1, per_question: [{question, correct, feedback, score}]}, is_mock).
+        """
+        joined = "\n".join(
+            f"Q{i + 1}: {item.get('question', '')}\nIdeal: {item.get('ideal_answer', '')}\nStudent: {item.get('answer', '')}"
+            for i, item in enumerate(items)
+        )
+        prompt = f"""
+You are TutorLoop's grader for a {subject} quiz on "{topic}".
+Grade each student answer for conceptual correctness from 0.0 to 1.0 (partial credit allowed).
+Be encouraging but accurate. Return strict JSON:
+{{"per_question": [{{"score": 0.0, "correct": true, "feedback": "..."}}]}}
+
+{joined}
+"""
+        if self.client:
+            try:
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model=self.settings.gemini_model,
+                    contents=prompt,
+                )
+                parsed = self._extract_json(response.text)
+                per_question = []
+                for i, graded in enumerate(parsed.get("per_question", [])):
+                    score = max(0.0, min(1.0, float(graded.get("score", 0))))
+                    per_question.append(
+                        {
+                            "question": items[i].get("question", "") if i < len(items) else "",
+                            "score": score,
+                            "correct": bool(graded.get("correct", score >= 0.6)),
+                            "feedback": str(graded.get("feedback", "")),
+                        }
+                    )
+                if per_question:
+                    overall = sum(q["score"] for q in per_question) / len(per_question)
+                    return {"score": round(overall, 3), "per_question": per_question}, False
+            except Exception:
+                pass
+        return self._mock_grade(items), True
+
+    def _extract_json(self, text: str) -> dict[str, Any]:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise ValueError("Gemini did not return JSON")
+        return json.loads(match.group(0))
+
+    def _mock_quiz(self, subject: str, topic: str, num_questions: int) -> list[dict[str, Any]]:
+        bank = [
+            {"question": f"In your own words, what is the core idea of {topic}?",
+             "ideal_answer": f"A correct, concise explanation of the central concept of {topic}."},
+            {"question": f"Give one concrete example that illustrates {topic}.",
+             "ideal_answer": f"A relevant worked example demonstrating {topic}."},
+            {"question": f"What is a common mistake students make with {topic}, and how do you avoid it?",
+             "ideal_answer": f"Identifies a typical {topic} pitfall and a correction strategy."},
+            {"question": f"How does {topic} connect to the broader subject of {subject}?",
+             "ideal_answer": f"Links {topic} to related ideas in {subject}."},
+        ]
+        return bank[: max(1, min(num_questions, len(bank)))]
+
+    def _mock_grade(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        per_question = []
+        for item in items:
+            answer = str(item.get("answer", "")).strip()
+            words = len(answer.split())
+            # Heuristic: longer, non-trivial answers score higher in demo mode.
+            if words == 0:
+                score = 0.0
+            elif words < 5:
+                score = 0.4
+            elif words < 15:
+                score = 0.7
+            else:
+                score = 0.9
+            per_question.append(
+                {
+                    "question": item.get("question", ""),
+                    "score": score,
+                    "correct": score >= 0.6,
+                    "feedback": "Demo grading: answer scored on depth and specificity. Add a concrete example to improve."
+                    if score < 0.9
+                    else "Demo grading: strong, specific answer.",
+                }
+            )
+        overall = (sum(q["score"] for q in per_question) / len(per_question)) if per_question else 0.0
+        return {"score": round(overall, 3), "per_question": per_question}
+
     def _build_tutor_prompt(
         self,
         question: str,

@@ -11,13 +11,21 @@ CONTENT_DIR = Path(__file__).resolve().parent.parent / "content"
 CHUNK_SIZE = 1400
 CHUNK_OVERLAP = 200
 MAX_PAGES_PER_BOOK = 80
+# Cap chunks embedded per book so ingestion stays fast while keeping enough
+# context for the AI tutor's RAG grounding.
+CHUNKS_PER_BOOK = 12
 
 BOOK_CATALOG: list[dict[str, Any]] = [
     {
         "_id": "book-mit-calculus",
         "title": "MIT RES 18.001 Calculus",
         "subject": "Calculus",
-        "description": "MIT OpenCourseWare calculus textbook covering limits, derivatives, integrals, and applications.",
+        "description": (
+            "Builds intuition for limits, derivatives, and integrals using visual and algebraic reasoning.\n"
+            "Connects core theorems to real optimization, motion, and accumulation problems.\n"
+            "Includes worked examples that progress from concept checks to exam-level questions.\n"
+            "Great as a primary reference during TutorLoop calculus tutoring sessions."
+        ),
         "filename": "mitres_18_001_f17_full_book.pdf",
         "price": 0.0,
         "rating": 4.9,
@@ -28,7 +36,12 @@ BOOK_CATALOG: list[dict[str, Any]] = [
         "_id": "book-mml",
         "title": "Mathematics for Machine Learning",
         "subject": "Linear Algebra",
-        "description": "Vectors, matrices, eigenvalues, and calculus foundations for machine learning.",
+        "description": (
+            "Explains the linear algebra and multivariable calculus foundations behind modern ML models.\n"
+            "Covers vectors, matrix decompositions, probability basics, and optimization ideas.\n"
+            "Each chapter links math concepts directly to practical machine learning workflows.\n"
+            "Helpful for students moving from formulas to model intuition."
+        ),
         "filename": "mml-book.pdf",
         "price": 0.0,
         "rating": 4.8,
@@ -39,7 +52,12 @@ BOOK_CATALOG: list[dict[str, Any]] = [
         "_id": "book-linear-guest",
         "title": "Linear Algebra Guest Lecture Notes",
         "subject": "Linear Algebra",
-        "description": "Introductory linear algebra notes on vectors, spans, and matrix operations.",
+        "description": (
+            "Introduces vectors, spans, basis changes, and matrix operations in a concise format.\n"
+            "Focuses on geometric meaning so students can reason before memorizing procedures.\n"
+            "Includes compact examples for row reduction and system-solving practice.\n"
+            "Useful as a quick companion for tutoring prep and revision."
+        ),
         "filename": "linear-guest.pdf",
         "price": 0.0,
         "rating": 4.6,
@@ -50,7 +68,12 @@ BOOK_CATALOG: list[dict[str, Any]] = [
         "_id": "book-transformer-survey",
         "title": "Transformer Architecture Survey",
         "subject": "Machine Learning",
-        "description": "Survey of transformer models, attention, and modern deep learning architectures.",
+        "description": (
+            "Surveys transformer families, attention mechanisms, and architecture design choices.\n"
+            "Compares training objectives, scaling behavior, and efficiency trade-offs.\n"
+            "Highlights practical patterns for adapting transformers across domains.\n"
+            "Useful for advanced learners studying modern AI system design."
+        ),
         "filename": "2501.09223v2.pdf",
         "price": 0.0,
         "rating": 4.7,
@@ -61,11 +84,32 @@ BOOK_CATALOG: list[dict[str, Any]] = [
         "_id": "book-springer-ml",
         "title": "Machine Learning Foundations",
         "subject": "Machine Learning",
-        "description": "Foundational machine learning concepts from a Springer reference text.",
+        "description": (
+            "Covers core ML foundations including supervision, generalization, and evaluation.\n"
+            "Introduces probabilistic thinking and optimization with clear conceptual framing.\n"
+            "Bridges theory and implementation with practical model-selection guidance.\n"
+            "Works well as a broad reference for semester-long ML tutoring."
+        ),
         "filename": "978-3-031-54827-7.pdf",
         "price": 0.0,
         "rating": 4.5,
         "author": "Springer",
+        "content_type": "book",
+    },
+    {
+        "_id": "book-agentic-patterns",
+        "title": "Agentic Design Patterns",
+        "subject": "AI Agents",
+        "description": (
+            "Catalogs practical design patterns for building reliable LLM-powered agents.\n"
+            "Covers planning, tool use, memory, reflection, and multi-agent coordination.\n"
+            "Connects each pattern to when and why it improves agent behavior.\n"
+            "Useful for students studying modern agentic AI and LLM application design."
+        ),
+        "filename": "Agentic-Design-Patterns.pdf",
+        "price": 0.0,
+        "rating": 4.7,
+        "author": "Community guide",
         "content_type": "book",
     },
 ]
@@ -77,16 +121,24 @@ class BookService:
         self.vector_search = vector_search
 
     async def ensure_books_ingested(self) -> dict[str, Any]:
-        if await self.db.find_one("books", {"_id": BOOK_CATALOG[0]["_id"]}):
-            chunk_docs = await self.db.find_many("book_chunks", {}, limit=5000)
-            return {"ingested": False, "books": len(BOOK_CATALOG), "chunks": len(chunk_docs)}
+        """Keep the AI tutor's book library == the content/ folder, nothing else.
 
-        await self.db.delete_many("books", {})
-        await self.db.delete_many("book_chunks", {})
+        Prunes any books/chunks that are not part of the content-folder catalog
+        (e.g. demo/synthetic data) and incrementally ingests any catalog book
+        that is not yet present, so existing books are not re-embedded.
+        """
+        catalog_ids = [book["_id"] for book in BOOK_CATALOG]
+
+        # Remove anything that is not from the content/ folder catalog.
+        await self.db.delete_many("books", {"_id": {"$nin": catalog_ids}})
+        await self.db.delete_many("book_chunks", {"book_id": {"$nin": catalog_ids}})
 
         books_created = 0
         chunks_created = 0
         for book in BOOK_CATALOG:
+            if await self.db.find_one("books", {"_id": book["_id"]}):
+                continue
+
             pdf_path = CONTENT_DIR / book["filename"]
             if not pdf_path.exists():
                 continue
@@ -99,8 +151,10 @@ class BookService:
             await self.db.insert_one("books", book_doc)
             books_created += 1
 
+            # Fresh chunks for this book only.
+            await self.db.delete_many("book_chunks", {"book_id": book["_id"]})
             text = self._extract_pdf_text(pdf_path)
-            chunks = self._chunk_text(text)
+            chunks = self._chunk_text(text)[:CHUNKS_PER_BOOK]
             for index, chunk in enumerate(chunks):
                 chunk_doc = {
                     "book_id": book["_id"],
@@ -117,7 +171,15 @@ class BookService:
                 await self.db.insert_one("book_chunks", chunk_doc)
                 chunks_created += 1
 
-        return {"ingested": True, "books": books_created, "chunks": chunks_created}
+        total_books = await self.db.find_many("books", {}, limit=1000)
+        total_chunks = await self.db.find_many("book_chunks", {}, limit=10000)
+        return {
+            "ingested": books_created > 0,
+            "books_created": books_created,
+            "chunks_created": chunks_created,
+            "books_total": len(total_books),
+            "chunks_total": len(total_chunks),
+        }
 
     def _extract_pdf_text(self, pdf_path: Path) -> str:
         try:

@@ -72,6 +72,25 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "display_name": "Elena Rivera",
             "subjects": ["Calculus", "Algebra", "Precalculus"],
             "bio": "Patient calculus tutor focused on graphs, intuition, and quick checks for understanding.",
+            "about_me": (
+                "I am a calculus educator who specializes in reducing math anxiety with visual-first teaching.\n"
+                "My sessions combine concept intuition, worked examples, and confidence-building checkpoints.\n"
+                "I mentor first-year college students transitioning into proof-heavy and applied math courses.\n"
+                "Students choose me when they want calm explanations and steady progress each week."
+            ),
+            "major_topics": [
+                "Limits and continuity",
+                "Derivative intuition and rules",
+                "Optimization and related rates",
+                "Integral setup and interpretation",
+            ],
+            "credentials": (
+                "B.S. Applied Mathematics; M.Ed. Secondary Math Instruction.\n"
+                "6+ years tutoring high school and undergraduate calculus.\n"
+                "Former STEM learning-center coordinator and curriculum designer."
+            ),
+            "study_experience": "B.S. Applied Mathematics, University of Washington; M.Ed. in Mathematics Education.",
+            "work_experience": "6+ years private tutoring, 2 years as STEM center coordinator, and AP Calculus workshop facilitator.",
             "hourly_rate": 42,
             "rating": 4.9,
             "teaching_style": "Graph-first, step-by-step explanations, frequent concept checks, and calm correction.",
@@ -83,6 +102,25 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "display_name": "Sam Okafor",
             "subjects": ["Physics", "Calculus"],
             "bio": "Physics tutor who connects derivatives to velocity, acceleration, and real motion examples.",
+            "about_me": (
+                "I teach physics through motion stories, diagrams, and equation sense-making.\n"
+                "My goal is to help students explain results verbally, not just compute answers.\n"
+                "I support pre-med and engineering students who need practical problem-solving speed.\n"
+                "Sessions are structured to convert weak spots into repeatable solving routines."
+            ),
+            "major_topics": [
+                "Kinematics and motion graphs",
+                "Forces and Newtonian dynamics",
+                "Work-energy and power",
+                "Calculus for physics applications",
+            ],
+            "credentials": (
+                "B.S. Physics; M.S. Mechanical Engineering coursework.\n"
+                "5+ years tutoring algebra-based and calculus-based physics.\n"
+                "Industry experience in simulation-driven product testing."
+            ),
+            "study_experience": "B.S. Physics with graduate-level coursework in applied mechanics and numerical methods.",
+            "work_experience": "Physics tutor for 5+ years and former simulation analyst in an engineering lab.",
             "hourly_rate": 38,
             "rating": 4.7,
             "teaching_style": "Uses concrete physics scenarios and short quizzes to reveal misconceptions.",
@@ -94,6 +132,25 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "display_name": "Nina Patel",
             "subjects": ["Writing", "Biology"],
             "bio": "Study coach for lab reports, essays, and biology concept maps.",
+            "about_me": (
+                "I help students transform scattered notes into clear scientific writing and study systems.\n"
+                "My approach blends active recall, outline design, and efficient revision cycles.\n"
+                "I work with students balancing heavy reading loads across biology and writing courses.\n"
+                "Lessons focus on clarity, retention, and confidence before exams and submissions."
+            ),
+            "major_topics": [
+                "Biology concept mapping",
+                "Lab report structure",
+                "Evidence-based academic writing",
+                "Exam revision strategy",
+            ],
+            "credentials": (
+                "B.S. Biology; Graduate certificate in science communication.\n"
+                "4+ years coaching research writing and pre-health coursework.\n"
+                "Former peer-writing center mentor."
+            ),
+            "study_experience": "B.S. Biology plus postgraduate training in science communication and research writing.",
+            "work_experience": "Writing center mentor and biology study coach supporting pre-health cohorts.",
             "hourly_rate": 34,
             "rating": 4.6,
             "teaching_style": "Turns broad confusion into outlines, flashcards, and retrieval practice.",
@@ -101,7 +158,20 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
         },
     ]
     for tutor in tutors:
-        tutor["embedding"] = await vector_search.embed_document(tutor, ["display_name", "subjects", "bio", "teaching_style"])
+        tutor["embedding"] = await vector_search.embed_document(
+            tutor,
+            [
+                "display_name",
+                "subjects",
+                "bio",
+                "about_me",
+                "major_topics",
+                "credentials",
+                "study_experience",
+                "work_experience",
+                "teaching_style",
+            ],
+        )
         await db.insert_one("tutors", tutor)
 
     notes = [
@@ -110,7 +180,12 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "tutor_id": DEMO_TUTOR_ID,
             "title": "Derivatives Without Panic",
             "subject": "Calculus",
-            "description": "A visual guide to secant slopes, tangent lines, and the power rule.",
+            "description": (
+                "Starts with secant lines and builds toward tangent-line intuition step by step.\n"
+                "Shows how derivative rules connect to graph behavior and instant rate of change.\n"
+                "Includes quick diagnostic checks to catch common sign and exponent mistakes.\n"
+                "Designed for students who need a calm, visual first pass before harder problems."
+            ),
             "price": 9.0,
             "content": "Derivatives measure instant rate of change. Start with secant slope, move the second point closer, and watch the tangent slope emerge. Includes f(x)=x^2 examples and quick checks.",
             "rating": 4.8,
@@ -122,7 +197,12 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "tutor_id": DEMO_TUTOR_ID,
             "title": "Chain Rule Pattern Sheet",
             "subject": "Calculus",
-            "description": "How to spot inside and outside functions before differentiating.",
+            "description": (
+                "Teaches a reliable process for identifying inner and outer functions quickly.\n"
+                "Uses pattern families so students can classify expressions before differentiating.\n"
+                "Provides common error examples and correction tips for nested functions.\n"
+                "Ideal for timed quizzes where setup speed matters."
+            ),
             "price": 7.5,
             "content": "The chain rule works when one function is nested inside another. Mark the outside, mark the inside, differentiate outside, then multiply by the derivative of inside.",
             "rating": 4.6,
@@ -134,7 +214,12 @@ async def seed_demo_data(db: Any, gemini: Any, vector_search: Any, *, reset: boo
             "tutor_id": "tutor-demo-sam",
             "title": "Velocity and Acceleration From Graphs",
             "subject": "Physics",
-            "description": "Use slope and curvature to reason about motion graphs.",
+            "description": (
+                "Explains how position, velocity, and acceleration graphs translate into motion stories.\n"
+                "Focuses on slope, curvature, and sign analysis to avoid formula-only thinking.\n"
+                "Includes graph interpretation prompts used in intro physics assessments.\n"
+                "Great bridge for students combining calculus and mechanics."
+            ),
             "price": 8.0,
             "content": "Velocity is the derivative of position. Acceleration is the derivative of velocity. Graph slope tells a story about motion.",
             "rating": 4.7,

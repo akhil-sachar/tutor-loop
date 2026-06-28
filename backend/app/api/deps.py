@@ -23,3 +23,7 @@ def get_recommendations(request: Request):
 
 def get_reflections(request: Request):
     return request.app.state.reflections
+
+
+def get_learning(request: Request):
+    return request.app.state.learning

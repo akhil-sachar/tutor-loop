@@ -4,7 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TutorLoop</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260628a" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260628h" />
   </head>
   <body>
     <div class="app-shell">
@@ -219,6 +225,18 @@ Student: The graph helps. I still need practice connecting that to the power rul
               <div class="filter-grid">
                 <input id="lecturePrompt" value="Calculus: derivatives and tangent slope intuition" />
               </div>
+              <div class="panel-head">
+                <div>
+                  <span class="label">Lecture sources (optional)</span>
+                  <h3>Pick books to ground the lecture</h3>
+                </div>
+                <button id="loadSourcesBtn" class="secondary small">Refresh sources</button>
+              </div>
+              <p class="lecture-hint">
+                The AI tutor only uses books from the content library. Select one or more to narrow its RAG
+                retrieval to just those books, or leave all unchecked to use the whole library.
+              </p>
+              <div id="lectureSources" class="source-list"></div>
               <div id="lectureLaunchStatus" class="output"></div>
             </div>
 
@@ -235,9 +253,35 @@ Student: The graph helps. I still need practice connecting that to the power rul
               </div>
               <textarea id="aiQuestion" rows="3">Can you explain derivatives using what my tutor just taught me?</textarea>
               <div id="aiAnswer" class="answer-box"></div>
+              <div id="aiFeedback" class="feedback-row" hidden>
+                <span>Was this helpful?</span>
+                <button id="aiHelpfulYes" class="secondary small">Yes</button>
+                <button id="aiHelpfulNo" class="secondary small">No</button>
+                <span id="aiFeedbackMsg" class="feedback-msg"></span>
+              </div>
               <div id="aiReflectionOutput" class="output"></div>
               <div id="aiContext" class="result-list compact"></div>
             </div>
+          </div>
+
+          <div class="panel mastery-panel">
+            <div class="panel-head">
+              <div>
+                <span class="label">Continual learning</span>
+                <h3>Mastery check</h3>
+              </div>
+              <button id="startQuizBtn" class="secondary small">Start check</button>
+            </div>
+            <p class="lecture-hint">
+              Take a short check. The tutor grades it, measures how your mastery changed, and automatically
+              updates your weak vs mastered topics — that signal feeds future tutoring.
+            </p>
+            <div class="filter-grid quiz-inputs">
+              <input id="quizSubject" value="Calculus" placeholder="Subject" />
+              <input id="quizTopic" value="derivatives and tangent slope" placeholder="Topic" />
+            </div>
+            <div id="quizArea" class="quiz-area"></div>
+            <div id="quizResult" class="output"></div>
           </div>
         </section>
 
@@ -260,6 +304,6 @@ Student: The graph helps. I still need practice connecting that to the power rul
       <div class="empty-state">No results yet.</div>
     </template>
 
-    <script src="/assets/app.js?v=20260628a"></script>
+    <script src="/assets/app.js?v=20260628h"></script>
   </body>
 </html>

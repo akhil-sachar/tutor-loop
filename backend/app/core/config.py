@@ -16,10 +16,13 @@ class Settings(BaseSettings):
     mongodb_db_name: str = "tutorloop"
     mongodb_vector_index: str = "tutorloop_vector_index"
     mongodb_timeout_ms: int = 20000
+    mongodb_allow_vector_fallback: bool = False
     embedding_dimensions: int = 768
 
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3.5-pro"
+    # Text generation (tutor chat, reflections, summaries) uses a standard model.
+    # This CAN be a flash model, e.g. "gemini-3.5-flash".
+    gemini_model: str = "gemini-3.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
 
     livekit_url: str | None = None

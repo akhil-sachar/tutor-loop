@@ -44,6 +44,10 @@ def _matches_operator(actual: Any, operator: str, expected: Any, options: str = 
         if isinstance(actual, list):
             return any(item in expected for item in actual)
         return actual in expected
+    if operator == "$nin":
+        if isinstance(actual, list):
+            return all(item not in expected for item in actual)
+        return actual not in expected
     if operator == "$gte":
         return actual is not None and actual >= expected
     if operator == "$lte":
@@ -240,6 +244,10 @@ class AppDatabase:
                 if item not in current:
                     current.append(copy.deepcopy(item))
             set_nested(target, key, current)
+        for key, value in update.get("$pull", {}).items():
+            current = get_nested(target, key) or []
+            removed = [item for item in current if item != value]
+            set_nested(target, key, removed)
         target["updated_at"] = utc_now()
 
     async def delete_many(self, collection: str, query: dict[str, Any] | None = None) -> int:

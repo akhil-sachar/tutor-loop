@@ -13,6 +13,7 @@ from backend.app.db.mongo import AppDatabase
 from backend.app.seed import seed_demo_data
 from backend.app.services.book_service import BookService
 from backend.app.services.gemini_service import GeminiService
+from backend.app.services.learning_service import LearningSignalService
 from backend.app.services.livekit_service import LiveKitService
 from backend.app.services.recommendation_service import RecommendationService
 from backend.app.services.reflection_service import ReflectionService
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     recommendations_service = RecommendationService(db, vector_search, gemini)
     reflections = ReflectionService(db, gemini, vector_search, recommendations_service)
     books_service = BookService(db, vector_search)
+    learning = LearningSignalService(db, gemini, recommendations_service)
 
     app.state.settings = settings
     app.state.db = db
@@ -40,6 +42,7 @@ async def lifespan(app: FastAPI):
     app.state.recommendations = recommendations_service
     app.state.reflections = reflections
     app.state.books = books_service
+    app.state.learning = learning
 
     if settings.demo_seed_on_startup:
         await seed_demo_data(db, gemini, vector_search, reset=False)

@@ -8,6 +8,9 @@ const lectureState = {
   isMock: false,
   notes: [],
   outline: [],
+  noteIds: [],
+  bookIds: [],
+  groundedSources: false,
   transcript: [],
   transcriptIndexByKey: new Map(),
   room: null,
@@ -15,6 +18,7 @@ const lectureState = {
   camEnabled: true,
   isCompleting: false,
   recognition: null,
+  recognitionMode: null,
   mockLectureStarted: false,
 };
 
@@ -85,6 +89,58 @@ function appendTranscript(speaker, text, key = null) {
   if (key) lectureState.transcriptIndexByKey.set(key, lectureState.transcript.length - 1);
   renderTranscriptLine(entry);
   $("liveTranscript").prepend(line);
+}
+
+function startBrowserTranscription(mode) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return false;
+  if (lectureState.recognition) return true;
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+  lectureState.recognitionMode = mode;
+  recognition.onresult = async (event) => {
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const result = event.results[index];
+      const text = result[0]?.transcript?.trim();
+      if (!text) continue;
+      const key = `student-browser:${index}`;
+      appendTranscript("Student", text, key);
+
+      if (lectureState.recognitionMode === "mock" && result.isFinal && text.length >= 3) {
+        window.speechSynthesis.cancel();
+        setTutorSpeaking(false);
+        await askMockTutor(text);
+      }
+    }
+  };
+  recognition.onerror = () => {};
+  recognition.onend = () => {
+    if (!lectureState.micEnabled) return;
+    try {
+      recognition.start();
+    } catch (_error) {
+      // Some browsers throw if restarted too quickly.
+    }
+  };
+
+  lectureState.recognition = recognition;
+  recognition.start();
+  return true;
+}
+
+function stopBrowserTranscription() {
+  if (!lectureState.recognition) return;
+  try {
+    lectureState.recognition.onend = null;
+    lectureState.recognition.stop();
+  } catch (_error) {
+    // Ignore already-stopped state.
+  }
+  lectureState.recognition = null;
+  lectureState.recognitionMode = null;
 }
 
 function buildPersistedTranscript() {
@@ -160,6 +216,9 @@ function loadSession() {
     isMock: session.is_mock,
     notes: session.notes || [],
     outline: session.lecture_outline || [],
+    noteIds: session.note_ids || [],
+    bookIds: session.book_ids || [],
+    groundedSources: Boolean(session.grounded_sources),
   });
   $("lectureTitle").textContent = `${session.subject} — ${session.topic}`;
   $("lectureSubtitle").textContent = session.is_mock
@@ -197,7 +256,6 @@ async function connectLiveKit() {
   room.on(RoomEvent.TranscriptionReceived, (segments) => {
     for (const segment of segments) {
       if (!segment.text?.trim()) continue;
-      if (segment.final === false || segment.isFinal === false) continue;
       const speaker = segment.participantInfo?.identity === lectureState.studentId ? "Student" : "AI Tutor";
       appendTranscript(speaker, segment.text, transcriptSegmentKey(segment, speaker));
     }
@@ -206,6 +264,7 @@ async function connectLiveKit() {
   await room.connect(lectureState.roomUrl, lectureState.token);
   await room.localParticipant.setMicrophoneEnabled(true);
   await room.localParticipant.setCameraEnabled(true);
+  startBrowserTranscription("live");
   setStatus("Live lecture", "tutor");
   appendTranscript("System", "Connected to LiveKit. Your virtual tutor will join shortly — speak anytime to interject.");
 }
@@ -219,14 +278,22 @@ async function toggleMic() {
   if (lectureState.room) {
     lectureState.micEnabled = !lectureState.micEnabled;
     await lectureState.room.localParticipant.setMicrophoneEnabled(lectureState.micEnabled);
+    if (lectureState.micEnabled) {
+      startBrowserTranscription(lectureState.isMock ? "mock" : "live");
+    } else {
+      stopBrowserTranscription();
+    }
   } else if (lectureState.recognition) {
     if (lectureState.micEnabled) {
-      lectureState.recognition.stop();
+      stopBrowserTranscription();
       lectureState.micEnabled = false;
     } else {
-      lectureState.recognition.start();
+      startBrowserTranscription(lectureState.isMock ? "mock" : "live");
       lectureState.micEnabled = true;
     }
+  } else if (!lectureState.micEnabled) {
+    startBrowserTranscription(lectureState.isMock ? "mock" : "live");
+    lectureState.micEnabled = true;
   }
   $("toggleMicBtn").textContent = lectureState.micEnabled ? "Mic on" : "Mic off";
 }
@@ -255,7 +322,6 @@ function speak(text) {
 }
 
 async function askMockTutor(question) {
-  appendTranscript("Student", question);
   const result = await api("/ai/chat", {
     method: "POST",
     body: JSON.stringify({
@@ -263,6 +329,8 @@ async function askMockTutor(question) {
       question: `During a live lecture on ${lectureState.topic}, the student interjects: ${question}`,
       subject: lectureState.subject,
       language: "English",
+      note_ids: lectureState.noteIds,
+      book_ids: lectureState.bookIds,
     }),
   });
   appendTranscript("AI Tutor", result.answer);
@@ -274,33 +342,40 @@ async function startMockLecture() {
   await startLocalCamera();
   await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SpeechRecognition) {
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-    recognition.onresult = async (event) => {
-      const last = event.results[event.results.length - 1];
-      if (!last.isFinal) return;
-      const text = last[0].transcript.trim();
-      if (text.length < 3) return;
-      window.speechSynthesis.cancel();
-      setTutorSpeaking(false);
-      await askMockTutor(text);
-    };
-    recognition.onerror = () => {};
-    lectureState.recognition = recognition;
-    recognition.start();
-  } else {
+  if (!startBrowserTranscription("mock")) {
     $("lectureHint").textContent = "Speech recognition is unavailable in this browser. Type questions in the transcript panel is not enabled; use Chrome for voice interjection.";
   }
 
   if (lectureState.mockLectureStarted) return;
   lectureState.mockLectureStarted = true;
-  const intro = `Welcome to your ${lectureState.subject} lecture on ${lectureState.topic}. I can see your notes on the right. Speak anytime to ask a question and I will pause to answer. Let us begin with the big picture: a derivative measures how fast something changes at one instant.`;
-  appendTranscript("AI Tutor", intro);
-  await speak(intro);
+
+  const welcome = `Welcome to your lecture on ${lectureState.topic}. I can see your notes on the right — speak anytime to ask a question and I'll pause to answer.`;
+  appendTranscript("AI Tutor", welcome);
+  await speak(welcome);
+
+  // Generate a real, topic-specific opening lecture from the backend so ANY
+  // topic gets an actual lecture (not a hardcoded calculus intro).
+  try {
+    const result = await api("/ai/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        student_id: lectureState.studentId,
+        question: `Deliver the opening of a short spoken lecture on "${lectureState.topic}"${
+          lectureState.subject && lectureState.subject !== lectureState.topic ? ` in ${lectureState.subject}` : ""
+        }. Start with the big-picture idea, then teach the first key concept with one example. Keep it conversational for text-to-speech.`,
+        subject: lectureState.subject,
+        language: "English",
+        note_ids: lectureState.noteIds,
+        book_ids: lectureState.bookIds,
+      }),
+    });
+    appendTranscript("AI Tutor", result.answer);
+    await speak(result.answer);
+  } catch (error) {
+    const fallback = `Let's begin with the big picture of ${lectureState.topic}. I'll explain the core idea step by step — ask me anything as we go.`;
+    appendTranscript("AI Tutor", fallback);
+    await speak(fallback);
+  }
 }
 
 async function endLecture() {
@@ -314,7 +389,7 @@ async function endLecture() {
       await lectureState.room.disconnect();
     }
     if (lectureState.recognition) {
-      lectureState.recognition.stop();
+      stopBrowserTranscription();
     }
     window.speechSynthesis?.cancel();
     const result = await api(`/ai/lecture/${lectureState.lectureId}/complete`, {

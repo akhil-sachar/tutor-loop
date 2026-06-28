@@ -9,6 +9,9 @@ const state = {
   notes: [],
   books: [],
   tutors: [],
+  lectureSources: { notes: [], books: [] },
+  selectedSources: { notes: new Set(), books: new Set() },
+  currentQuiz: null,
 };
 
 const sectionTitles = {
@@ -58,6 +61,10 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function formatMultiline(value) {
+  return escapeHtml(value).replaceAll("\n", "<br>");
+}
+
 function formatTimeRange(startsAt, endsAt) {
   const start = new Date(startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const end = new Date(endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -93,7 +100,7 @@ function renderNotes(notes) {
       (note) => `
       <article class="data-card">
         <strong>${escapeHtml(note.title)}</strong>
-        <p>${escapeHtml(note.description)}</p>
+        <p>${formatMultiline(note.description)}</p>
         <div class="meta-row">
           ${pill(note.subject)}
           ${pill(`$${Number(note.price).toFixed(2)}`, "note")}
@@ -112,7 +119,7 @@ function renderBooks(books) {
       (book) => `
       <article class="data-card">
         <strong>${escapeHtml(book.title)}</strong>
-        <p>${escapeHtml(book.description)}</p>
+        <p>${formatMultiline(book.description)}</p>
         <div class="meta-row">
           ${pill(book.subject, "book")}
           ${pill(book.author || "Platform", "tutor")}
@@ -132,13 +139,39 @@ function renderTutors(tutors) {
       (tutor) => `
       <article class="data-card">
         <strong>${escapeHtml(tutor.display_name)}</strong>
-        <p>${escapeHtml(tutor.bio)}</p>
+        <div class="profile-section">
+          <span class="label">About Me</span>
+          <p>${formatMultiline(tutor.about_me || tutor.bio)}</p>
+        </div>
         <div class="meta-row">
           ${pill((tutor.subjects || []).join(", "), "tutor")}
           ${pill(`$${Number(tutor.hourly_rate).toFixed(0)}/hr`)}
           ${pill(`${Number(tutor.rating || 0).toFixed(1)} rating`)}
         </div>
-        <p>${escapeHtml(tutor.teaching_style)}</p>
+        ${
+          tutor.major_topics?.length
+            ? `<div class="profile-section"><span class="label">Major Topics</span><p>${escapeHtml(tutor.major_topics.join(", "))}</p></div>`
+            : ""
+        }
+        ${
+          tutor.credentials
+            ? `<div class="profile-section"><span class="label">Credentials</span><p>${formatMultiline(tutor.credentials)}</p></div>`
+            : ""
+        }
+        ${
+          tutor.study_experience
+            ? `<div class="profile-section"><span class="label">Study Experience</span><p>${escapeHtml(tutor.study_experience)}</p></div>`
+            : ""
+        }
+        ${
+          tutor.work_experience
+            ? `<div class="profile-section"><span class="label">Work Experience</span><p>${escapeHtml(tutor.work_experience)}</p></div>`
+            : ""
+        }
+        <div class="profile-section">
+          <span class="label">Teaching Style</span>
+          <p>${escapeHtml(tutor.teaching_style)}</p>
+        </div>
         <button data-book-tutor="${escapeHtml(tutor.id || tutor._id)}">Book tutor</button>
       </article>
     `,
@@ -175,7 +208,7 @@ function renderLibrary(library) {
           (note) => `
       <article class="data-card">
         <strong>${escapeHtml(note.title)}</strong>
-        <p>${escapeHtml(note.description)}</p>
+        <p>${formatMultiline(note.description)}</p>
         <div class="meta-row">
           ${note.subject ? pill(note.subject, "note") : ""}
           ${pill(`$${Number(note.price || 0).toFixed(2)}`, "note")}
@@ -193,7 +226,7 @@ function renderLibrary(library) {
           (book) => `
       <article class="data-card">
         <strong>${escapeHtml(book.title)}</strong>
-        <p>${escapeHtml(book.description)}</p>
+        <p>${formatMultiline(book.description)}</p>
         <div class="meta-row">
           ${book.subject ? pill(book.subject, "book") : ""}
           ${book.author ? pill(book.author, "tutor") : ""}
@@ -415,18 +448,60 @@ async function reflectSession() {
   }
 }
 
+function renderLectureSources() {
+  const target = $("lectureSources");
+  if (!target) return;
+  const books = state.lectureSources.books || [];
+  if (!books.length) {
+    target.innerHTML = `<div class="empty-state">No content-folder books available to ground the lecture yet.</div>`;
+    return;
+  }
+  const renderItem = (item) => {
+    const id = item.id || item._id;
+    const checked = state.selectedSources.books.has(id) ? "checked" : "";
+    const meta = `${item.subject || "Book"}${item.author ? ` · ${item.author}` : ""}`;
+    return `
+      <label class="source-item">
+        <input type="checkbox" data-source-type="books" value="${escapeHtml(id)}" ${checked} />
+        <span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <em>${escapeHtml(meta)}</em>
+        </span>
+      </label>`;
+  };
+  target.innerHTML = `<div class="source-group"><span class="label">Books from content library</span>${books.map(renderItem).join("")}</div>`;
+}
+
+async function loadLectureSources() {
+  const target = $("lectureSources");
+  try {
+    // AI tutor content comes ONLY from the content/ folder books forwarded to Atlas.
+    const books = await api("/books").catch(() => []);
+    state.lectureSources = { books: books || [], notes: [] };
+    renderLectureSources();
+  } catch (error) {
+    if (target) showError(target, error);
+  }
+}
+
 async function startAiLecture() {
   const target = $("lectureLaunchStatus");
   try {
     target.textContent = "Preparing lecture room and loading notes…";
     const lecturePrompt = $("lecturePrompt").value.trim() || "Calculus: derivatives and tangent slope intuition";
-    let subject = "Calculus";
+    let subject = "General";
     let topic = lecturePrompt;
     if (lecturePrompt.includes(":")) {
       const [left, ...rest] = lecturePrompt.split(":");
       if (left.trim()) subject = left.trim();
       if (rest.join(":").trim()) topic = rest.join(":").trim();
+    } else {
+      // No explicit "Subject: topic" — use the prompt as the subject too so
+      // retrieval and the lecture title reflect the requested topic.
+      subject = lecturePrompt;
     }
+    const noteIds = [...state.selectedSources.notes];
+    const bookIds = [...state.selectedSources.books];
     const result = await api("/ai/lecture/start", {
       method: "POST",
       body: JSON.stringify({
@@ -434,6 +509,8 @@ async function startAiLecture() {
         subject,
         topic,
         language: "English",
+        note_ids: noteIds,
+        book_ids: bookIds,
       }),
     });
     sessionStorage.setItem(
@@ -448,6 +525,9 @@ async function startAiLecture() {
         is_mock: result.is_mock,
         notes: result.notes,
         lecture_outline: result.lecture_outline,
+        grounded_sources: result.grounded_sources,
+        note_ids: noteIds,
+        book_ids: bookIds,
       }),
     );
     window.location.href = "/ai-lecture.html";
@@ -476,12 +556,119 @@ async function askAi() {
     state.conversationId = result.conversation_id;
     answerTarget.textContent = result.answer;
     renderResults(contextTarget, result.retrieved_context);
+    const feedback = $("aiFeedback");
+    $("aiFeedbackMsg").textContent = "";
+    feedback.hidden = false;
   } catch (error) {
     showError(answerTarget, error);
   } finally {
     state.isAskingAi = false;
     $("askAiBtn").disabled = false;
     $("askAiBtn").textContent = "Ask AI";
+  }
+}
+
+async function sendAiFeedback(helpful) {
+  const msg = $("aiFeedbackMsg");
+  if (!state.conversationId) {
+    msg.textContent = "Ask the AI tutor first.";
+    return;
+  }
+  try {
+    const result = await api(`/ai/conversations/${state.conversationId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({ student_id: state.studentId, helpful }),
+    });
+    msg.textContent = result.message;
+  } catch (error) {
+    msg.textContent = `Could not save feedback: ${error.message || error}`;
+  }
+}
+
+async function startQuiz() {
+  const area = $("quizArea");
+  const resultTarget = $("quizResult");
+  resultTarget.textContent = "";
+  area.innerHTML = "Generating your mastery check…";
+  try {
+    const quiz = await api("/ai/quiz/start", {
+      method: "POST",
+      body: JSON.stringify({
+        student_id: state.studentId,
+        subject: $("quizSubject").value || "General",
+        topic: $("quizTopic").value || "core concepts",
+        num_questions: 3,
+      }),
+    });
+    state.currentQuiz = quiz;
+    const priorPct = Math.round((quiz.prior_mastery || 0) * 100);
+    area.innerHTML = `
+      <p class="quiz-meta">Prior mastery of <strong>${escapeHtml(quiz.topic)}</strong>: ${priorPct}%</p>
+      ${quiz.questions
+        .map(
+          (q, i) => `
+        <div class="quiz-question">
+          <label><strong>Q${i + 1}.</strong> ${escapeHtml(q.question)}</label>
+          <textarea data-quiz-q="${escapeHtml(q.id)}" rows="2" placeholder="Your answer…"></textarea>
+        </div>`,
+        )
+        .join("")}
+      <button id="submitQuizBtn">Submit answers</button>
+    `;
+    $("submitQuizBtn").addEventListener("click", submitQuiz);
+  } catch (error) {
+    showError(area, error);
+  }
+}
+
+async function submitQuiz() {
+  const resultTarget = $("quizResult");
+  if (!state.currentQuiz) return;
+  const answers = [...document.querySelectorAll("[data-quiz-q]")].map((el) => ({
+    question_id: el.dataset.quizQ,
+    answer: el.value,
+  }));
+  $("submitQuizBtn").disabled = true;
+  $("submitQuizBtn").textContent = "Grading…";
+  try {
+    const result = await api("/ai/quiz/grade", {
+      method: "POST",
+      body: JSON.stringify({ quiz_id: state.currentQuiz.quiz_id, answers }),
+    });
+    const priorPct = Math.round(result.prior_mastery * 100);
+    const newPct = Math.round(result.new_mastery * 100);
+    const deltaPct = Math.round(result.delta * 100);
+    const deltaSign = deltaPct > 0 ? "+" : "";
+    const deltaClass = deltaPct > 0 ? "delta-up" : deltaPct < 0 ? "delta-down" : "";
+    resultTarget.innerHTML = `
+      <div class="mastery-result">
+        <div class="mastery-bar-row">
+          <span>Mastery: ${priorPct}% → <strong>${newPct}%</strong></span>
+          <span class="${deltaClass}">${deltaSign}${deltaPct} pts</span>
+          ${result.mastered ? `<span class="pill book">Mastered ✓</span>` : ""}
+        </div>
+        ${result.per_question
+          .map(
+            (q) => `
+          <div class="quiz-feedback">
+            <span class="pill">${Math.round(q.score * 100)}%</span>
+            ${escapeHtml(q.feedback)}
+          </div>`,
+          )
+          .join("")}
+        <p class="quiz-meta">Weak topics: ${(result.weak_topics || []).map((t) => escapeHtml(t)).join(", ") || "none"}</p>
+        <p class="quiz-meta">Mastered topics: ${(result.mastered_topics || []).map((t) => escapeHtml(t)).join(", ") || "none"}</p>
+      </div>
+    `;
+    await loadRecommendations();
+  } catch (error) {
+    showError(resultTarget, error);
+  } finally {
+    const btn = $("submitQuizBtn");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Submit answers";
+    }
   }
 }
 
@@ -557,17 +744,44 @@ function bindEvents() {
   });
   $("semanticSearchBtn").addEventListener("click", searchSemantic);
   $("runMainFlowBtn").addEventListener("click", runMainFlow);
-  $("storeSearchBtn").addEventListener("click", async () => {
+  const runStoreSearch = async () => {
     await Promise.all([searchNotes(), searchBooks()]);
-  });
+  };
+  $("storeSearchBtn").addEventListener("click", runStoreSearch);
   $("tutorSearchBtn").addEventListener("click", searchTutors);
+
+  const onEnter = (inputId, handler) => {
+    const input = $(inputId);
+    if (!input) return;
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        handler();
+      }
+    });
+  };
+  onEnter("mainSearchInput", searchSemantic);
+  onEnter("storeQuery", runStoreSearch);
+  onEnter("tutorQuery", searchTutors);
+  onEnter("lecturePrompt", startAiLecture);
   $("refreshAvailabilityBtn").addEventListener("click", loadTutorAvailability);
   $("confirmBookingBtn").addEventListener("click", confirmBooking);
   $("joinRoomBtn").addEventListener("click", joinRoom);
   $("reflectBtn").addEventListener("click", reflectSession);
   $("askAiBtn").addEventListener("click", askAi);
   $("reflectAiBtn").addEventListener("click", reflectAiSession);
+  $("aiHelpfulYes").addEventListener("click", () => sendAiFeedback(true));
+  $("aiHelpfulNo").addEventListener("click", () => sendAiFeedback(false));
+  $("startQuizBtn").addEventListener("click", startQuiz);
   $("startLectureBtn").addEventListener("click", startAiLecture);
+  $("loadSourcesBtn").addEventListener("click", loadLectureSources);
+  $("lectureSources").addEventListener("change", (event) => {
+    const checkbox = event.target.closest("input[type=checkbox][data-source-type]");
+    if (!checkbox) return;
+    const type = checkbox.dataset.sourceType;
+    if (checkbox.checked) state.selectedSources[type].add(checkbox.value);
+    else state.selectedSources[type].delete(checkbox.value);
+  });
   $("refreshRecsBtn").addEventListener("click", loadRecommendations);
   $("refreshLibraryBtn").addEventListener("click", loadLibrary);
   $("resetDemoBtn").addEventListener("click", resetDemo);
@@ -623,7 +837,15 @@ async function init() {
     sessionStorage.removeItem("tutorloopLectureComplete");
     setSection("ai");
   }
-  await Promise.all([searchSemantic(), searchNotes(), searchBooks(), searchTutors(), loadRecommendations(), loadLibrary()]);
+  await Promise.all([
+    searchSemantic(),
+    searchNotes(),
+    searchBooks(),
+    searchTutors(),
+    loadRecommendations(),
+    loadLibrary(),
+    loadLectureSources(),
+  ]);
   if (initialTutorId) {
     state.tutorId = initialTutorId;
     state.selectedSlot = null;

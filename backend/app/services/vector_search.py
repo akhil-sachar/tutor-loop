@@ -18,6 +18,48 @@ COLLECTION_TITLES = {
     "ai_conversations": "subject",
 }
 
+# Each collection gets its own distinct Atlas Vector Search index instead of a
+# single shared index. This keeps the index name (and its filter fields, see
+# VECTOR_INDEX_FILTERS) specific to the shape of each collection.
+VECTOR_INDEXES = {
+    "notes": "notes_vector_index",
+    "books": "books_vector_index",
+    "book_chunks": "book_chunks_vector_index",
+    "tutors": "tutors_vector_index",
+    "transcripts": "transcripts_vector_index",
+    "ai_reflections": "ai_reflections_vector_index",
+    "ai_conversations": "ai_conversations_vector_index",
+    "sessions": "sessions_vector_index",
+}
+
+# Distinct filter fields per collection so each index only declares what that
+# collection actually filters on (e.g. tutors filter by hourly_rate, book_chunks
+# by book_id for narrowed RAG, notes by price/rating).
+VECTOR_INDEX_FILTERS = {
+    "notes": ["subject", "content_type", "price", "rating"],
+    "books": ["subject", "content_type", "price", "rating"],
+    "book_chunks": ["subject", "content_type", "book_id"],
+    "tutors": ["subjects", "content_type", "hourly_rate", "rating"],
+    "transcripts": ["subject"],
+    "ai_reflections": ["subject"],
+    "ai_conversations": ["subject"],
+    "sessions": ["subject"],
+}
+
+
+# How strongly accumulated feedback reward nudges retrieval ranking.
+REWARD_WEIGHT = 0.03
+
+
+def index_for_collection(collection: str, default: str = "tutorloop_vector_index") -> str:
+    """Return the distinct vector-search index name for a collection."""
+    return VECTOR_INDEXES.get(collection, default)
+
+
+def filters_for_collection(collection: str) -> list[str]:
+    """Return the filter field paths that this collection's index should declare."""
+    return VECTOR_INDEX_FILTERS.get(collection, ["subject"])
+
 
 class VectorSearchService:
     """MongoDB Atlas Vector Search with local fallback scoring."""
@@ -48,14 +90,72 @@ class VectorSearchService:
             if self.db.is_mongo:
                 try:
                     results = await self._atlas_vector_search(collection, embedding, collection_filter, limit)
-                except Exception:
-                    results = await self._local_vector_search(collection, query, embedding, collection_filter, limit)
+                except Exception as exc:
+                    if self.settings.mongodb_allow_vector_fallback:
+                        results = await self._local_vector_search(collection, query, embedding, collection_filter, limit)
+                    else:
+                        raise RuntimeError(
+                            f"Atlas vector search failed for '{collection}' using index "
+                            f"'{self._index_for_collection(collection)}'. "
+                            "Set MONGODB_ALLOW_VECTOR_FALLBACK=true to allow local fallback."
+                        ) from exc
             else:
                 results = await self._local_vector_search(collection, query, embedding, collection_filter, limit)
             all_results.extend(results)
 
+        # Continual-learning signal: nudge ranking by accumulated feedback reward so
+        # memories/answers that actually helped students surface more often, and
+        # ones that didn't surface less. Bounded so it re-ranks but never dominates.
+        for item in all_results:
+            reward = float(item.get("reward", 0) or 0)
+            item["score"] = round(item["score"] + max(-0.05, min(0.05, REWARD_WEIGHT * reward)), 4)
+
         all_results.sort(key=lambda item: item["score"], reverse=True)
         return all_results[:limit]
+
+    async def search_sources(
+        self,
+        *,
+        query: str,
+        note_ids: list[str] | None = None,
+        book_ids: list[str] | None = None,
+        limit: int = 8,
+    ) -> list[dict[str, Any]]:
+        """RAG retrieval narrowed to a specific set of selected notes/books.
+
+        Gathers candidate documents (selected note docs + the chunks of selected
+        books) and ranks them locally by semantic + lexical similarity. This keeps
+        the lecture grounded strictly on what the student picked, regardless of
+        which fields are configured as Atlas vector-search filters.
+        """
+        note_ids = [nid for nid in (note_ids or []) if nid]
+        book_ids = [bid for bid in (book_ids or []) if bid]
+        if not note_ids and not book_ids:
+            return []
+
+        embedding = await self.gemini.embed_text(query)
+        candidates: list[tuple[str, dict[str, Any]]] = []
+
+        if note_ids:
+            notes = await self.db.find_many("notes", {"_id": {"$in": note_ids}}, limit=500)
+            candidates.extend(("notes", doc) for doc in notes)
+        if book_ids:
+            chunks = await self.db.find_many(
+                "book_chunks",
+                {"book_id": {"$in": book_ids}},
+                sort=[("chunk_index", 1)],
+                limit=5000,
+            )
+            candidates.extend(("book_chunks", doc) for doc in chunks)
+
+        results: list[dict[str, Any]] = []
+        for collection, doc in candidates:
+            vector_score = self._cosine(embedding, doc.get("embedding") or [])
+            lexical_score = self._lexical_score(query, self._text_for_doc(doc))
+            score = (0.7 * vector_score) + (0.3 * lexical_score)
+            results.append(self._shape_result(collection, doc, score))
+        results.sort(key=lambda item: item["score"], reverse=True)
+        return results[:limit]
 
     async def _atlas_vector_search(
         self,
@@ -67,7 +167,7 @@ class VectorSearchService:
         # Sponsor integration: MongoDB Atlas Vector Search performs semantic
         # retrieval over notes, tutors, lesson summaries, and AI reflections.
         vector_stage: dict[str, Any] = {
-            "index": self.settings.mongodb_vector_index,
+            "index": self._index_for_collection(collection),
             "path": "embedding",
             "queryVector": embedding,
             "numCandidates": 100,
@@ -102,6 +202,9 @@ class VectorSearchService:
             results.append(self._shape_result(collection, doc, score))
         results.sort(key=lambda item: item["score"], reverse=True)
         return results[:limit]
+
+    def _index_for_collection(self, collection: str) -> str:
+        return VECTOR_INDEXES.get(collection, self.settings.mongodb_vector_index)
 
     def _filter_for_collection(self, collection: str, filters: dict[str, Any]) -> dict[str, Any]:
         query: dict[str, Any] = {}
@@ -143,6 +246,11 @@ class VectorSearchService:
             "description",
             "content",
             "bio",
+            "about_me",
+            "major_topics",
+            "credentials",
+            "study_experience",
+            "work_experience",
             "teaching_style",
             "summary",
             "transcript",

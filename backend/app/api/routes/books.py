@@ -12,6 +12,7 @@ async def search_books(
     q: str = Query(..., min_length=2),
     subject: str | None = None,
     limit: int = Query(default=10, ge=1, le=50),
+    db=Depends(get_db),
     vector_search=Depends(get_vector_search),
 ):
     filters = {"subject": subject} if subject else {}
@@ -29,15 +30,16 @@ async def search_books(
             continue
         seen.add(book_id)
         if item.get("content_type") == "book_chunk":
+            book_doc = await db.find_one("books", {"_id": book_id}) if book_id else None
             books.append(
                 {
                     "id": book_id,
-                    "title": item.get("title", "Book"),
-                    "subject": item.get("subject", ""),
-                    "description": item.get("snippet", item.get("content", ""))[:260],
-                    "price": 0.0,
-                    "rating": 4.5,
-                    "author": None,
+                    "title": (book_doc or item).get("title", "Book"),
+                    "subject": (book_doc or item).get("subject", ""),
+                    "description": (book_doc or item).get("description", item.get("snippet", item.get("content", ""))[:260]),
+                    "price": float((book_doc or item).get("price", 0)),
+                    "rating": float((book_doc or item).get("rating", 4.5)),
+                    "author": (book_doc or item).get("author"),
                 }
             )
         else:

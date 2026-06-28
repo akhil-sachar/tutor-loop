@@ -6,6 +6,9 @@ class AIChatRequest(BaseModel):
     question: str
     subject: str | None = None
     language: str = "English"
+    # Optional RAG narrowing: restrict retrieval to these selected sources.
+    note_ids: list[str] = []
+    book_ids: list[str] = []
 
 
 class RetrievedContext(BaseModel):
@@ -55,6 +58,9 @@ class AILectureStartRequest(BaseModel):
     subject: str = "Calculus"
     topic: str = "derivatives and tangent slope intuition"
     language: str = "English"
+    # Optional RAG narrowing: ground the lecture only on these selected sources.
+    note_ids: list[str] = []
+    book_ids: list[str] = []
 
 
 class AILectureStartResponse(BaseModel):
@@ -66,6 +72,7 @@ class AILectureStartResponse(BaseModel):
     agent_name: str | None = None
     notes: list[LectureNote]
     lecture_outline: list[str]
+    grounded_sources: bool = False
 
 
 class AILectureCompleteRequest(BaseModel):
