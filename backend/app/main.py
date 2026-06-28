@@ -18,11 +18,13 @@ from backend.app.services.livekit_service import LiveKitService
 from backend.app.services.recommendation_service import RecommendationService
 from backend.app.services.reflection_service import ReflectionService
 from backend.app.services.vector_search import VectorSearchService
+from backend.app.services.weave_service import get_weave_status, init_weave
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    init_weave(settings)
     db = AppDatabase(settings)
     await db.connect()
 
@@ -84,6 +86,7 @@ async def health():
         "gemini": "configured" if settings.use_gemini else "mock",
         "livekit": "configured" if settings.use_livekit else "mock",
         "ai_lecture_agent": "enabled" if agent_ready else "browser_fallback",
+        "weave": get_weave_status(),
         "run_command": "python run.py",
     }
 

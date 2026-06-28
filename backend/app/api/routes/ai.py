@@ -23,6 +23,7 @@ from backend.app.schemas.learning import (
     QuizStartRequest,
     QuizStartResponse,
 )
+from backend.app.services.weave_service import safe_trace, trace_ai_lecture_start
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -132,6 +133,16 @@ async def start_ai_lecture(
             "content_type": "ai_lecture",
             "created_at": utc_now(),
         },
+    )
+    safe_trace(
+        trace_ai_lecture_start,
+        student_id=payload.student_id,
+        subject=payload.subject,
+        topic=payload.topic,
+        room_id=room_id,
+        grounded_sources=grounded_sources,
+        notes=[note.model_dump() for note in lecture_notes],
+        is_mock=token_payload["is_mock"],
     )
 
     return {

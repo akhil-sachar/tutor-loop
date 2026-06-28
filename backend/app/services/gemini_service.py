@@ -7,6 +7,15 @@ import math
 import re
 from typing import Any
 
+from backend.app.services.weave_service import (
+    safe_trace,
+    trace_ai_tutor_response,
+    trace_embedding,
+    trace_quiz_generation,
+    trace_quiz_grading,
+    trace_reflection,
+)
+
 
 class GeminiService:
     """Gemini wrapper with deterministic mock fallbacks for demos."""
@@ -27,12 +36,32 @@ class GeminiService:
                 self.is_mock = True
 
     async def embed_text(self, text: str) -> list[float]:
+        is_mock = True
         if self.client:
             try:
-                return await asyncio.to_thread(self._embed_with_gemini, text)
+                embedding = await asyncio.to_thread(self._embed_with_gemini, text)
+                is_mock = False
+                if self.settings.weave_trace_embeddings:
+                    safe_trace(
+                        trace_embedding,
+                        model=self.settings.gemini_embedding_model,
+                        text=text,
+                        dimensions=len(embedding),
+                        is_mock=is_mock,
+                    )
+                return embedding
             except Exception:
-                return self._mock_embedding(text)
-        return self._mock_embedding(text)
+                pass
+        embedding = self._mock_embedding(text)
+        if self.settings.weave_trace_embeddings:
+            safe_trace(
+                trace_embedding,
+                model="mock-embedding",
+                text=text,
+                dimensions=len(embedding),
+                is_mock=is_mock,
+            )
+        return embedding
 
     def _embed_with_gemini(self, text: str) -> list[float]:
         response = self.client.models.embed_content(
@@ -51,6 +80,8 @@ class GeminiService:
         language: str = "English",
     ) -> tuple[str, bool]:
         prompt = self._build_tutor_prompt(question, student_profile, retrieved_context, language)
+        answer: str | None = None
+        is_mock = True
         if self.client:
             try:
                 response = await asyncio.to_thread(
@@ -58,10 +89,23 @@ class GeminiService:
                     model=self.settings.gemini_model,
                     contents=prompt,
                 )
-                return response.text, False
+                answer = response.text
+                is_mock = False
             except Exception:
                 pass
-        return self._mock_tutor_response(question, student_profile, retrieved_context, language), True
+        if answer is None:
+            answer = self._mock_tutor_response(question, student_profile, retrieved_context, language)
+        safe_trace(
+            trace_ai_tutor_response,
+            model=self.settings.gemini_model if not is_mock else "mock-tutor",
+            question=question,
+            language=language,
+            weak_topics=(student_profile or {}).get("weak_topics", []),
+            retrieved_context=retrieved_context,
+            answer=answer,
+            is_mock=is_mock,
+        )
+        return answer, is_mock
 
     async def reflect_session(
         self,
@@ -86,6 +130,8 @@ Translate the summary to: {target_language}
 Transcript:
 {transcript}
 """
+        reflection: dict[str, Any] | None = None
+        is_mock = True
         if self.client:
             try:
                 response = await asyncio.to_thread(
@@ -93,10 +139,23 @@ Transcript:
                     model=self.settings.gemini_model,
                     contents=prompt,
                 )
-                return self._parse_reflection_json(response.text), False
+                reflection = self._parse_reflection_json(response.text)
+                is_mock = False
             except Exception:
                 pass
-        return self._mock_reflection(transcript, subject, target_language), True
+        if reflection is None:
+            reflection = self._mock_reflection(transcript, subject, target_language)
+        safe_trace(
+            trace_reflection,
+            model=self.settings.gemini_model if not is_mock else "mock-reflection",
+            subject=subject,
+            target_language=target_language,
+            session_type=session_type,
+            transcript=transcript,
+            reflection=reflection,
+            is_mock=is_mock,
+        )
+        return reflection, is_mock
 
     async def generate_quiz(
         self,
@@ -117,6 +176,8 @@ Topic: {topic}
 
 Return strict JSON: {{"questions": [{{"question": "...", "ideal_answer": "..."}}]}}
 """
+        questions: list[dict[str, Any]] | None = None
+        is_mock = True
         if self.client:
             try:
                 response = await asyncio.to_thread(
@@ -125,16 +186,27 @@ Return strict JSON: {{"questions": [{{"question": "...", "ideal_answer": "..."}}
                     contents=prompt,
                 )
                 parsed = self._extract_json(response.text)
-                questions = [
+                candidate_questions = [
                     {"question": str(q.get("question", "")).strip(), "ideal_answer": str(q.get("ideal_answer", "")).strip()}
                     for q in parsed.get("questions", [])
                     if str(q.get("question", "")).strip()
                 ]
-                if questions:
-                    return questions[:num_questions], False
+                if candidate_questions:
+                    questions = candidate_questions[:num_questions]
+                    is_mock = False
             except Exception:
                 pass
-        return self._mock_quiz(subject, topic, num_questions), True
+        if questions is None:
+            questions = self._mock_quiz(subject, topic, num_questions)
+        safe_trace(
+            trace_quiz_generation,
+            model=self.settings.gemini_model if not is_mock else "mock-quiz",
+            subject=subject,
+            topic=topic,
+            questions=questions,
+            is_mock=is_mock,
+        )
+        return questions, is_mock
 
     async def grade_quiz(
         self,
@@ -159,6 +231,8 @@ Be encouraging but accurate. Return strict JSON:
 
 {joined}
 """
+        grade: dict[str, Any] | None = None
+        is_mock = True
         if self.client:
             try:
                 response = await asyncio.to_thread(
@@ -180,10 +254,22 @@ Be encouraging but accurate. Return strict JSON:
                     )
                 if per_question:
                     overall = sum(q["score"] for q in per_question) / len(per_question)
-                    return {"score": round(overall, 3), "per_question": per_question}, False
+                    grade = {"score": round(overall, 3), "per_question": per_question}
+                    is_mock = False
             except Exception:
                 pass
-        return self._mock_grade(items), True
+        if grade is None:
+            grade = self._mock_grade(items)
+        safe_trace(
+            trace_quiz_grading,
+            model=self.settings.gemini_model if not is_mock else "mock-grader",
+            subject=subject,
+            topic=topic,
+            items=items,
+            grade=grade,
+            is_mock=is_mock,
+        )
+        return grade, is_mock
 
     def _extract_json(self, text: str) -> dict[str, Any]:
         match = re.search(r"\{.*\}", text, re.DOTALL)

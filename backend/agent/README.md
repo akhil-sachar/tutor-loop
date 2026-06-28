@@ -1,6 +1,7 @@
 # TutorLoop LiveKit AI tutor agent
 
-Voice + video lecture agent using Gemini Live API.
+Voice lecture agent using **Gemini 3.5** (STT → LLM → TTS pipeline), not the Gemini Live API.
+The same `GEMINI_MODEL` powers text chat (`/ai/chat`) and live voice tutoring.
 
 This agent is **started automatically** when you run:
 
@@ -14,11 +15,15 @@ Set in `.env`:
 
 ```bash
 GEMINI_API_KEY=...          # also used as GOOGLE_API_KEY for the agent
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_TTS_MODEL=gemini-2.5-flash-preview-tts
 LIVEKIT_URL=wss://...
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
 RUN_LIVEKIT_AGENT=true
 ```
+
+Speech-to-text uses LiveKit Inference (`TUTOR_STT_MODEL=deepgram/nova-3` by default), billed through LiveKit Cloud.
 
 Agent dispatch name: `tutorloop-ai-tutor`
 

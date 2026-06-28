@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-only-change-me"
     demo_seed_on_startup: bool = True
 
+    weave_enabled: bool = False
+    weave_project: str = "tutorloop"
+    weave_entity: str | None = None
+    weave_trace_embeddings: bool = False
+    wandb_api_key: str | None = None
+
     frontend_dir: Path = ROOT_DIR / "frontend"
 
     model_config = SettingsConfigDict(

@@ -1,6 +1,9 @@
 """
 TutorLoop LiveKit voice agent.
 
+Uses an STT -> Gemini 3.5 -> TTS pipeline (not the Gemini Live API) so the same
+model family powers text chat and live voice tutoring.
+
 Started automatically by `python run.py` alongside the FastAPI app.
 Manual run: python -m backend.agent.tutor_agent dev
 """
@@ -12,7 +15,6 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from google.genai import types
 
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
@@ -28,10 +30,9 @@ except Exception:  # Optional plugin; app still runs without it.
     ai_coustics = None
 
 AGENT_NAME = "tutorloop-ai-tutor"
-# Native-audio Live model. IMPORTANT: it must support speaking first via
-# generate_reply(). gemini-3.1-flash-live-preview does NOT (LiveKit ignores
-# generate_reply on 3.1), so the tutor would stay silent and never lecture.
-DEFAULT_GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+DEFAULT_GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+DEFAULT_STT_MODEL = "deepgram/nova-3"
 
 
 def _build_instructions(metadata: dict) -> str:
@@ -71,6 +72,7 @@ Behavior:
 - Ignore ambient/background noise (keyboard clicks, fans, room chatter) unless the student is clearly speaking to you.
 {grounding_rule}
 - Use a warm, Socratic tutoring tone.
+- Keep spoken responses concise and natural for text-to-speech: no markdown, bullets, emojis, or asterisks.
 - Never claim model weights were fine-tuned; you improve through memory and reflection."""
 
 
@@ -87,18 +89,30 @@ async def tutorloop_ai_tutor(ctx: JobContext) -> None:
     metadata = json.loads(ctx.job.metadata or "{}")
     instructions = _build_instructions(metadata)
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    live_model = os.getenv("GEMINI_LIVE_MODEL", DEFAULT_GEMINI_LIVE_MODEL)
+    gemini_model = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+    gemini_tts_model = os.getenv("GEMINI_TTS_MODEL", DEFAULT_GEMINI_TTS_MODEL)
+    stt_model = os.getenv("TUTOR_STT_MODEL", DEFAULT_STT_MODEL)
 
     session = AgentSession(
+        # STT via LiveKit Inference (uses LIVEKIT_* keys). Gemini has no streaming STT API.
+        stt=inference.STT(model=stt_model, language="en"),
+        # Standard Gemini generateContent — same model family as /ai/chat.
+        llm=google.LLM(
+            model=gemini_model,
+            api_key=api_key,
+        ),
+        # Gemini TTS (uses GOOGLE_API_KEY / GEMINI_API_KEY).
+        tts=google.beta.GeminiTTS(
+            model=gemini_tts_model,
+            voice_name=os.getenv("GEMINI_TTS_VOICE", "Zephyr"),
+            instructions="Speak warmly and clearly like a patient tutor lecturing a student.",
+            api_key=api_key,
+        ),
         turn_handling=TurnHandlingOptions(
-            # Prefer LiveKit turn detection so background noise is less likely
-            # to trigger interruptions than provider-side VAD defaults.
             turn_detection=inference.TurnDetector(
-                # Stricter thresholds reduce false turn boundaries from ambient noise.
                 unlikely_threshold=0.68,
                 backchannel_threshold=0.75,
             ),
-            # Require a meaningful user interruption before pausing the tutor.
             interruption={
                 "enabled": True,
                 "mode": "adaptive",
@@ -115,17 +129,6 @@ async def tutorloop_ai_tutor(ctx: JobContext) -> None:
                 "alpha": 0.65,
             },
         ),
-        llm=google.realtime.RealtimeModel(
-            model=live_model,
-            voice="Puck",
-            instructions=instructions,
-            api_key=api_key,
-            realtime_input_config=types.RealtimeInputConfig(
-                automatic_activity_detection=types.AutomaticActivityDetection(
-                    disabled=True,
-                ),
-            ),
-        )
     )
 
     room_options = room_io.RoomOptions(video_input=True)
@@ -145,21 +148,16 @@ async def tutorloop_ai_tutor(ctx: JobContext) -> None:
 
     subject = metadata.get("subject", "this subject")
     topic = metadata.get("topic", "today's topic")
-
-    # Kick off the lecture so the tutor speaks first. generate_reply() is ignored
-    # on gemini-3.1 live models, so those would stay silent — for 3.1 we rely on
-    # the greeting baked into the system instructions instead.
-    if "3.1" not in live_model:
-        try:
-            await session.generate_reply(
-                instructions=(
-                    f"Begin the live lecture on {subject}: {topic}. Greet the student warmly, "
-                    "tell them they can speak anytime to interject with questions, then teach "
-                    "step 1 of the outline. Keep going through the outline, pausing for questions."
-                )
+    try:
+        await session.generate_reply(
+            instructions=(
+                f"Begin the live lecture on {subject}: {topic}. Greet the student warmly, "
+                "tell them they can speak anytime to interject with questions, then teach "
+                "step 1 of the outline. Keep going through the outline, pausing for questions."
             )
-        except Exception as exc:  # noqa: BLE001 - keep the session alive if kickoff fails
-            print(f"[tutorloop-agent] initial generate_reply failed: {exc}")
+        )
+    except Exception as exc:  # noqa: BLE001 - keep the session alive if kickoff fails
+        print(f"[tutorloop-agent] initial generate_reply failed: {exc}")
 
 
 if __name__ == "__main__":

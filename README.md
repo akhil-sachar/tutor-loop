@@ -10,6 +10,7 @@ TutorLoop is a hackathon MVP for an education marketplace where students buy tut
 - Database: MongoDB Atlas, with in-memory fallback for demos
 - Semantic search: MongoDB Atlas Vector Search, with local fallback scoring
 - AI: Gemini for tutor chat, embeddings, summaries, quiz/reflection generation
+- Observability: Weights & Biases Weave tracing for AI tutor, reflection, quiz, and lecture flows
 - Live classroom: LiveKit token generation, with mock tokens when credentials are missing
 - Frontend: static HTML/CSS/JS served by FastAPI
 - Deployment: Docker-ready for DigitalOcean App Platform
@@ -154,9 +155,15 @@ GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 LIVEKIT_URL=...
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
+WEAVE_ENABLED=false
+WEAVE_PROJECT=tutorloop
+WEAVE_ENTITY=
+WEAVE_TRACE_EMBEDDINGS=false
+WANDB_API_KEY=...
 ```
 
 If your Gemini account exposes a different model name, update `GEMINI_MODEL` without changing application code.
+Set `WEAVE_ENABLED=true` after adding `WANDB_API_KEY` or logging in with `wandb login`. Embedding traces are off by default because they can create a high volume of trace events during semantic search and data seeding.
 
 ## Run options
 
@@ -168,6 +175,22 @@ python run.py --production     # Docker / production (no reload)
 ```
 
 Set `RUN_LIVEKIT_AGENT=false` in `.env` to skip the voice agent.
+
+## W&B Weave Evaluations
+
+Run the continual-learning eval after setting `WEAVE_ENABLED=true` and `WANDB_API_KEY`:
+
+```bash
+python scripts/run_weave_evals.py
+```
+
+For a quick smoke run:
+
+```bash
+python scripts/run_weave_evals.py --limit 1
+```
+
+The eval compares baseline AI tutor answers against answers that include synthetic human-session reflection memory. Weave records the model output, retrieved context, and scorer results for expected concept coverage, tutoring structure, grounded retrieval context, continual-learning memory use, and avoiding any claim that model weights were fine-tuned. Add `--llm-judge` to include a Gemini judge scorer.
 
 ## Seed Data
 
