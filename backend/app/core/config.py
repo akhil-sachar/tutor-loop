@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     mongodb_uri: str | None = None
     mongodb_db_name: str = "tutorloop"
     mongodb_vector_index: str = "tutorloop_vector_index"
+    mongodb_timeout_ms: int = 20000
     embedding_dimensions: int = 768
 
     gemini_api_key: str | None = None

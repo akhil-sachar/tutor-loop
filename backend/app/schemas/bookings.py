@@ -8,7 +8,7 @@ class BookingCreate(BaseModel):
     student_id: str
     subject: str
     starts_at: datetime
-    duration_minutes: int = Field(default=45, ge=15, le=180)
+    duration_minutes: int = Field(default=30, ge=30, le=30)
 
 
 class BookingOut(BaseModel):
@@ -21,6 +21,7 @@ class BookingOut(BaseModel):
     status: str
     room_id: str
     session_id: str | None = None
+    availability_slot_id: str | None = None
 
     model_config = {"populate_by_name": True}
 

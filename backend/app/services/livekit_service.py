@@ -15,7 +15,8 @@ class LiveKitService:
         return f"tutorloop-{booking_id[:8]}"
 
     def room_id_for_ai_lecture(self, lecture_id: str) -> str:
-        return f"tutorloop-ai-{lecture_id[:12]}"
+        safe_id = "".join(character for character in lecture_id.lower() if character.isalnum())
+        return f"tutorloop-ai-{safe_id[-16:]}"
 
     def create_token(
         self,

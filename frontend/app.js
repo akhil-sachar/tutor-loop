@@ -4,6 +4,7 @@ const state = {
   bookingId: "booking-demo-derivatives",
   sessionId: "session-demo-derivatives",
   conversationId: null,
+  isAskingAi: false,
   notes: [],
   books: [],
   tutors: [],
@@ -27,7 +28,7 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || response.statusText);
+    throw new Error(typeof error.detail === "string" ? error.detail : error.detail?.message || response.statusText);
   }
   return response.json();
 }
@@ -240,21 +241,29 @@ async function purchaseNote(noteId) {
 }
 
 async function bookTutor(tutorId) {
-  const startsAt = new Date($("bookingTime").value || Date.now() + 60 * 60 * 1000).toISOString();
+  const requestedStart = new Date($("bookingTime").value || Date.now() + 60 * 60 * 1000);
+  const availableSlots = await api(`/tutors/${tutorId}/availability?limit=10`);
+  if (!availableSlots.length) {
+    throw new Error("This tutor has no open 30-minute slots.");
+  }
+  const exactSlot = availableSlots.find((slot) => new Date(slot.starts_at).getTime() === requestedStart.getTime());
+  const slot = exactSlot || availableSlots[0];
+  const startsAt = new Date(slot.starts_at).toISOString();
+  $("bookingTime").value = startsAt.slice(0, 16);
   const booking = await api("/bookings", {
     method: "POST",
     body: JSON.stringify({
       tutor_id: tutorId,
       student_id: state.studentId,
-      subject: $("tutorSubject").value || "Calculus",
+      subject: slot.subject || $("tutorSubject").value || "Calculus",
       starts_at: startsAt,
-      duration_minutes: 45,
+      duration_minutes: 30,
     }),
   });
   state.tutorId = tutorId;
   state.bookingId = booking.id || booking._id;
   state.sessionId = booking.session_id;
-  $("bookingResult").textContent = `Booked ${booking.subject} with room ${booking.room_id}. Session ${booking.session_id}.`;
+  $("bookingResult").textContent = `Booked 30 minutes of ${booking.subject} at ${new Date(booking.starts_at).toLocaleString()} with room ${booking.room_id}. Session ${booking.session_id}.`;
   setSection("classroom");
 }
 
@@ -339,6 +348,10 @@ async function startAiLecture() {
 }
 
 async function askAi() {
+  if (state.isAskingAi) return;
+  state.isAskingAi = true;
+  $("askAiBtn").disabled = true;
+  $("askAiBtn").textContent = "Thinking...";
   const answerTarget = $("aiAnswer");
   const contextTarget = $("aiContext");
   try {
@@ -356,6 +369,10 @@ async function askAi() {
     renderResults(contextTarget, result.retrieved_context);
   } catch (error) {
     showError(answerTarget, error);
+  } finally {
+    state.isAskingAi = false;
+    $("askAiBtn").disabled = false;
+    $("askAiBtn").textContent = "Ask AI";
   }
 }
 

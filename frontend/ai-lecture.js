@@ -9,9 +9,11 @@ const lectureState = {
   notes: [],
   outline: [],
   transcript: [],
+  transcriptIndexByKey: new Map(),
   room: null,
   micEnabled: true,
   camEnabled: true,
+  isCompleting: false,
   recognition: null,
   mockLectureStarted: false,
 };
@@ -31,12 +33,81 @@ function setStatus(text, type = "") {
   $("connectionStatus").className = `pill ${type}`;
 }
 
-function appendTranscript(speaker, text) {
-  lectureState.transcript.push({ speaker, text, at: new Date().toISOString() });
+function normalizeTranscriptText(text) {
+  return String(text ?? "").replace(/\s+/g, " ").trim();
+}
+
+function transcriptSegmentKey(segment, speaker) {
+  if (segment.id || segment.segmentId || segment.sid) return segment.id || segment.segmentId || segment.sid;
+  if (segment.startTime != null || segment.endTime != null) {
+    return `${speaker}:${segment.startTime ?? ""}:${segment.endTime ?? ""}:${segment.language ?? ""}`;
+  }
+  return null;
+}
+
+function renderTranscriptLine(entry) {
+  entry.element.innerHTML = `<strong>${escapeHtml(entry.speaker)}:</strong> ${escapeHtml(entry.text)}`;
+}
+
+function appendTranscript(speaker, text, key = null) {
+  const normalizedText = normalizeTranscriptText(text);
+  if (!normalizedText) return;
+
+  if (key && lectureState.transcriptIndexByKey.has(key)) {
+    const existing = lectureState.transcript[lectureState.transcriptIndexByKey.get(key)];
+    if (normalizedText.length >= existing.text.length) {
+      existing.text = normalizedText;
+      existing.at = new Date().toISOString();
+      renderTranscriptLine(existing);
+    }
+    return;
+  }
+
+  const lastIndex = lectureState.transcript.length - 1;
+  const last = lectureState.transcript[lastIndex];
+  if (last?.speaker === speaker) {
+    const previous = normalizeTranscriptText(last.text);
+    if (previous === normalizedText) return;
+    if (normalizedText.startsWith(previous) || previous.startsWith(normalizedText)) {
+      if (normalizedText.length > previous.length) {
+        last.text = normalizedText;
+        last.at = new Date().toISOString();
+        renderTranscriptLine(last);
+      }
+      return;
+    }
+  }
+
   const line = document.createElement("p");
   line.className = "transcript-line";
-  line.innerHTML = `<strong>${escapeHtml(speaker)}:</strong> ${escapeHtml(text)}`;
+  const entry = { speaker, text: normalizedText, at: new Date().toISOString(), key, element: line };
+  lectureState.transcript.push(entry);
+  if (key) lectureState.transcriptIndexByKey.set(key, lectureState.transcript.length - 1);
+  renderTranscriptLine(entry);
   $("liveTranscript").prepend(line);
+}
+
+function buildPersistedTranscript() {
+  const turns = [];
+  for (const line of lectureState.transcript) {
+    if (line.speaker === "System") continue;
+    const text = normalizeTranscriptText(line.text);
+    if (!text) continue;
+
+    const previousTurn = turns[turns.length - 1];
+    if (previousTurn?.speaker === line.speaker) {
+      if (previousTurn.text === text || previousTurn.text.includes(text)) continue;
+      if (text.includes(previousTurn.text)) {
+        previousTurn.text = text;
+      } else {
+        previousTurn.text = `${previousTurn.text} ${text}`;
+      }
+      continue;
+    }
+    turns.push({ speaker: line.speaker, text });
+  }
+
+  return turns.map((line) => `${line.speaker}: ${line.text}`).join("\n");
 }
 
 function renderNotes() {
@@ -126,8 +197,9 @@ async function connectLiveKit() {
   room.on(RoomEvent.TranscriptionReceived, (segments) => {
     for (const segment of segments) {
       if (!segment.text?.trim()) continue;
+      if (segment.final === false || segment.isFinal === false) continue;
       const speaker = segment.participantInfo?.identity === lectureState.studentId ? "Student" : "AI Tutor";
-      appendTranscript(speaker, segment.text.trim());
+      appendTranscript(speaker, segment.text, transcriptSegmentKey(segment, speaker));
     }
   });
 
@@ -232,31 +304,39 @@ async function startMockLecture() {
 }
 
 async function endLecture() {
-  const transcriptText = lectureState.transcript
-    .map((line) => `${line.speaker}: ${line.text}`)
-    .reverse()
-    .join("\n");
-  if (lectureState.room) {
-    await lectureState.room.disconnect();
+  if (lectureState.isCompleting) return;
+  lectureState.isCompleting = true;
+  $("endLectureBtn").textContent = "Saving...";
+  $("endLectureBtn").disabled = true;
+  try {
+    const transcriptText = buildPersistedTranscript();
+    if (lectureState.room) {
+      await lectureState.room.disconnect();
+    }
+    if (lectureState.recognition) {
+      lectureState.recognition.stop();
+    }
+    window.speechSynthesis?.cancel();
+    const result = await api(`/ai/lecture/${lectureState.lectureId}/complete`, {
+      method: "POST",
+      body: JSON.stringify({
+        student_id: lectureState.studentId,
+        transcript: transcriptText || "Student completed an AI lecture session.",
+      }),
+    });
+    sessionStorage.setItem(
+      "tutorloopLectureComplete",
+      JSON.stringify({ conversation_id: result.conversation_id, lecture_id: result.lecture_id }),
+    );
+    sessionStorage.removeItem("tutorloopLecture");
+    alert(result.message);
+    window.location.href = "/";
+  } catch (error) {
+    lectureState.isCompleting = false;
+    $("endLectureBtn").textContent = "End & save";
+    $("endLectureBtn").disabled = false;
+    $("lectureHint").textContent = `Could not save lecture: ${error.message || error}`;
   }
-  if (lectureState.recognition) {
-    lectureState.recognition.stop();
-  }
-  window.speechSynthesis?.cancel();
-  const result = await api(`/ai/lecture/${lectureState.lectureId}/complete`, {
-    method: "POST",
-    body: JSON.stringify({
-      student_id: lectureState.studentId,
-      transcript: transcriptText || "Student completed an AI lecture session.",
-    }),
-  });
-  sessionStorage.setItem(
-    "tutorloopLectureComplete",
-    JSON.stringify({ conversation_id: result.conversation_id, lecture_id: result.lecture_id }),
-  );
-  sessionStorage.removeItem("tutorloopLecture");
-  alert(result.message);
-  window.location.href = "/";
 }
 
 function bindEvents() {

@@ -72,10 +72,12 @@ app.add_middleware(
 async def health():
     settings = get_settings()
     agent_ready = settings.use_livekit and settings.use_gemini
+    db = app.state.db
     return {
         "status": "ok",
         "app": settings.app_name,
-        "mongo": "atlas" if settings.use_mongo else "memory",
+        "mongo": "atlas" if db.is_mongo else "memory",
+        "mongo_error": db.connection_error,
         "gemini": "configured" if settings.use_gemini else "mock",
         "livekit": "configured" if settings.use_livekit else "mock",
         "ai_lecture_agent": "enabled" if agent_ready else "browser_fallback",

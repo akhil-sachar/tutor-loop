@@ -100,6 +100,7 @@ class AppDatabase:
         self.settings = settings
         self.client = None
         self.db = None
+        self.connection_error: str | None = None
         self.memory: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     @property
@@ -112,9 +113,23 @@ class AppDatabase:
 
         from motor.motor_asyncio import AsyncIOMotorClient
 
-        self.client = AsyncIOMotorClient(self.settings.mongodb_uri)
-        self.db = self.client[self.settings.mongodb_db_name]
-        await self.db.command("ping")
+        try:
+            self.client = AsyncIOMotorClient(
+                self.settings.mongodb_uri,
+                serverSelectionTimeoutMS=self.settings.mongodb_timeout_ms,
+                connectTimeoutMS=self.settings.mongodb_timeout_ms,
+                socketTimeoutMS=self.settings.mongodb_timeout_ms,
+            )
+            self.db = self.client[self.settings.mongodb_db_name]
+            await self.db.command("ping")
+        except Exception as exc:
+            # Hackathon demo fallback: if Atlas is temporarily unreachable,
+            # keep TutorLoop usable with the in-memory store.
+            self.connection_error = str(exc)
+            if self.client:
+                self.client.close()
+            self.client = None
+            self.db = None
 
     async def close(self) -> None:
         if self.client:

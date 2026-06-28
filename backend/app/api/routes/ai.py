@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.api.deps import get_db, get_gemini, get_livekit, get_reflections, get_vector_search
@@ -72,7 +74,7 @@ async def start_ai_lecture(
     )
     lecture_notes = _lecture_notes_from_results(retrieved)
 
-    lecture_id = f"lecture-{payload.student_id[:8]}-{int(utc_now().timestamp())}"
+    lecture_id = f"lecture-{payload.student_id[:8]}-{uuid.uuid4().hex[:10]}"
     room_id = livekit.room_id_for_ai_lecture(lecture_id)
     agent_metadata = {
         "lecture_id": lecture_id,
@@ -131,6 +133,7 @@ async def complete_ai_lecture(
     if not lecture:
         raise HTTPException(status_code=404, detail="Lecture session not found")
 
+    existing_conversation_id = lecture.get("conversation_id")
     conversation = {
         "student_id": payload.student_id,
         "question": lecture.get("topic", "AI lecture"),
@@ -147,7 +150,15 @@ async def complete_ai_lecture(
         conversation,
         ["subject", "question", "answer"],
     )
-    conversation_id = await db.insert_one("ai_conversations", conversation)
+    if existing_conversation_id:
+        conversation_id = existing_conversation_id
+        await db.update_one(
+            "ai_conversations",
+            {"_id": conversation_id},
+            {"$set": conversation},
+        )
+    else:
+        conversation_id = await db.insert_one("ai_conversations", conversation)
     await db.update_one(
         "ai_lecture_sessions",
         {"_id": lecture_id},

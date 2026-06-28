@@ -22,6 +22,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, room_io
 from livekit.plugins import google
 
 AGENT_NAME = "tutorloop-ai-tutor"
+DEFAULT_GEMINI_LIVE_MODEL = "gemini-2.5-flash-native-audio-latest"
 
 
 def _build_instructions(metadata: dict) -> str:
@@ -67,10 +68,11 @@ async def tutorloop_ai_tutor(ctx: JobContext) -> None:
     metadata = json.loads(ctx.job.metadata or "{}")
     instructions = _build_instructions(metadata)
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    live_model = os.getenv("GEMINI_LIVE_MODEL", DEFAULT_GEMINI_LIVE_MODEL)
 
     session = AgentSession(
         llm=google.realtime.RealtimeModel(
-            model="gemini-2.5-flash",
+            model=live_model,
             voice="Puck",
             instructions=instructions,
             api_key=api_key,
